@@ -87,6 +87,8 @@ export default function Connections() {
 
   const auth = () => { };
 
+  const deleteConn = () => { };
+
   return (
     <Container p={{ base: 5, md: 10 }}>
       <VStack
@@ -158,6 +160,7 @@ export default function Connections() {
                 <Stack direction="row">
                   <Button onClick={sync}>Sync</Button>
                   <Button onClick={auth}>Authenticate</Button>
+                  <Button onClick={deleteConn} colorScheme="red">Delete</Button>
                 </Stack>
               </ModalFooter>
             </ModalContent>
