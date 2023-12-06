@@ -8,7 +8,7 @@ import {
   IconButton,
 } from '@chakra-ui/react';
 import { FaPlus } from 'react-icons/fa';
-import ColorModeSwitcher from './ColorModeSwitcher';
+import ColorModeSwitcher from './components/ColorModeSwitcher';
 import Connections from './components/Connections';
 
 export default function App() {
