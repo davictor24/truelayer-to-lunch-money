@@ -1,0 +1,39 @@
+version: "3"
+services:
+  frontend:
+    build:
+      context: ../../frontend
+    image: truelayer-to-lunch-money/frontend:0.1.0
+    ports:
+      - 8000:80
+  truelayer-service:
+    depends_on:
+      - mongo
+    build:
+      context: ../../backend/truelayer-service
+    image: truelayer-to-lunch-money/truelayer-service:0.1.0
+    environment:
+      NODE_ENV: docker-compose
+    ports:
+      - 8080:8080
+  lunch-money-service:
+    depends_on:
+      - mongo
+    build:
+      context: ../../backend/lunch-money-service
+    image: truelayer-to-lunch-money/lunch-money-service:0.1.0
+    environment:
+      NODE_ENV: docker-compose
+    ports:
+      - 8081:8081
+  mongo:
+    image: mongo:7.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: test
+      MONGO_INITDB_ROOT_PASSWORD: test
+      MONGO_INITDB_DATABASE: connections
+    volumes:
+      - ./data/mongo/users.js:/docker-entrypoint-initdb.d/users.js:ro
+      - ./data/mongo/db:/data/db:rw
+    ports:
+      - 27017:27017

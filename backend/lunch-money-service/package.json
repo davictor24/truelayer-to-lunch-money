@@ -8,6 +8,7 @@
     "lint": "eslint . --ext .ts",
     "quickstart": "node .",
     "start": "npm run build && node .",
+    "dev": "ts-node-dev --respawn src/index.ts",
     "test": "true"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^8.54.0",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.2"
   }
 }

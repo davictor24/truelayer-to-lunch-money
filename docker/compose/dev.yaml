@@ -1,0 +1,10 @@
+version: "3"
+services:
+  truelayer-service:
+    volumes:
+      - ../../backend/truelayer-service:/usr/src/app
+    command: npm run dev
+  lunch-money-service:
+    volumes:
+      - ../../backend/lunch-money-service:/usr/src/app/
+    command: npm run dev
