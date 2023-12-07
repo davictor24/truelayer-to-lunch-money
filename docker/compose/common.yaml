@@ -1,14 +1,19 @@
 version: "3"
 services:
   frontend:
+    depends_on:
+      - truelayer-service
+      - lunch-money-service
     build:
       context: ../../frontend
     image: truelayer-to-lunch-money/frontend:0.1.0
     ports:
       - 8000:80
+
   truelayer-service:
     depends_on:
       - mongo
+      - kafka
     build:
       context: ../../backend/truelayer-service
     image: truelayer-to-lunch-money/truelayer-service:0.1.0
@@ -16,9 +21,11 @@ services:
       NODE_ENV: docker-compose
     ports:
       - 8080:8080
+
   lunch-money-service:
     depends_on:
       - mongo
+      - kafka
     build:
       context: ../../backend/lunch-money-service
     image: truelayer-to-lunch-money/lunch-money-service:0.1.0
@@ -26,6 +33,7 @@ services:
       NODE_ENV: docker-compose
     ports:
       - 8081:8081
+
   mongo:
     image: mongo:7.0
     environment:
@@ -34,6 +42,33 @@ services:
       MONGO_INITDB_DATABASE: connections
     volumes:
       - ./data/mongo/users.js:/docker-entrypoint-initdb.d/users.js:ro
-      - ./data/mongo/db:/data/db:rw
+      - ./data/mongo/db:/data/db
     ports:
       - 27017:27017
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.3
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - ./data/zookeeper/data:/var/lib/zookeeper/data
+      - ./data/zookeeper/log:/var/lib/zookeeper/log
+    ports:
+      - 2181:2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.3
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - ./data/kafka/data:/var/lib/kafka/data
+    ports:
+      - 9092:9092
