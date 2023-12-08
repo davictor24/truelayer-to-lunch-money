@@ -1,12 +1,38 @@
-import express, { Request, Response } from "express";
+import express from 'express';
+import mongoose from 'mongoose';
+import cron from 'node-cron';
+import config from './config';
+import { health } from './controllers/mongo';
+import {
+  auth,
+  getConnections,
+  createConnection,
+  updateConnection,
+  deleteConnection,
+  forceSyncTransactions,
+} from './controllers/truelayer';
+import truelayerService from './services/truelayer';
 
 const app = express();
-const port = 8080;
+app.use(express.json());
 
-app.get("/", (_: Request, res: Response) => {
-  res.send("Hello world");
+mongoose.connect(config.mongo.url, {
+  user: config.mongo.username,
+  pass: config.mongo.password,
 });
 
-app.listen(port, () => {
-  console.log(`Server started at port ${port}`);
+app.get('/', health);
+app.get('/auth', auth);
+app.get('/connections', getConnections);
+app.post('/connections', createConnection);
+app.patch('/connections/:id', updateConnection);
+app.delete('/connections/:id', deleteConnection);
+app.post('/sync', forceSyncTransactions);
+
+cron.schedule('*/15 * * * *', () => {
+  truelayerService.queueTransactions();
+});
+
+app.listen(config.port, () => {
+  console.log(`Server started at port ${config.port}`);
 });

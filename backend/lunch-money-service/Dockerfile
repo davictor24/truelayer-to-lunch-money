@@ -21,4 +21,4 @@ RUN npm run build
 EXPOSE 8080
 
 # Define Docker’s behavior when the image is run
-CMD ["npm", "run", "quickstart"]
+CMD ["npm", "run", "start:prod"]

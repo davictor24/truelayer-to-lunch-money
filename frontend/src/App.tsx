@@ -26,7 +26,7 @@ export default function App() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const initialRef = useRef(null);
 
-  const newConn = () => { };
+  const newConnection = () => { };
 
   return (
     <ChakraProvider theme={theme}>
@@ -58,7 +58,7 @@ export default function App() {
                 <Input ref={initialRef} placeholder="Name e.g. 'My Monzo account'" />
               </ModalBody>
               <ModalFooter>
-                <Button onClick={newConn}>Next</Button>
+                <Button onClick={newConnection}>Next</Button>
               </ModalFooter>
             </ModalContent>
           </Modal>

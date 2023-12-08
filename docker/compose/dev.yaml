@@ -3,8 +3,8 @@ services:
   truelayer-service:
     volumes:
       - ../../backend/truelayer-service:/usr/src/app
-    command: npm run dev
+    command: npm run start:dev
   lunch-money-service:
     volumes:
       - ../../backend/lunch-money-service:/usr/src/app/
-    command: npm run dev
+    command: npm run start:dev
