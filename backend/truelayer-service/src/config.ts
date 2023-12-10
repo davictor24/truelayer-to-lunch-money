@@ -6,7 +6,10 @@ export default {
     clientId: process.env.TRUELAYER_CLIENT_ID,
     clientSecret: process.env.TRUELAYER_CLIENT_SECRET,
     redirectURI: process.env.TRUELAYER_REDIRECT_URI,
-    tokenEncryptionSecret: process.env.TRUELAYER_TOKEN_ENCRYPTION_SECRET,
+    tokenEncryption: {
+      secret: process.env.TRUELAYER_TOKEN_ENCRYPTION_SECRET,
+      salt: process.env.TRUELAYER_TOKEN_ENCRYPTION_SALT,
+    },
   },
   mongo: {
     url: process.env.MONGO_URL ?? 'mongodb://mongo:27017/connections',

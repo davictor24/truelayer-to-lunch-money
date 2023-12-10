@@ -1,5 +1,4 @@
 import { Schema } from 'mongoose';
-import { fieldEncryption } from 'mongoose-field-encryption';
 import { Metadata, MetadataSchema } from './metadata';
 import { Account, AccountSchema } from './account';
 import { Card, CardSchema } from './card';
@@ -24,11 +23,6 @@ export interface Token {
 export const TokenSchema = new Schema<Token>({
   token: { type: String, required: true },
   expires_in: { type: Date, required: true },
-});
-
-TokenSchema.plugin(fieldEncryption, {
-  fields: ['token'],
-  secret: config.truelayer.tokenEncryptionSecret,
 });
 
 export const ConnectionSchema = new Schema<Connection>({

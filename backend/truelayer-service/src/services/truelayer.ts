@@ -5,6 +5,7 @@ import { Connection, Token } from '../schemas/connection';
 import { Metadata, Provider } from '../schemas/metadata';
 import { Account } from '../schemas/account';
 import { Card } from '../schemas/card';
+import { encrypt, decrypt } from '../utils/encryption';
 
 interface Tokens {
   accessToken: Token;
@@ -208,8 +209,14 @@ export class TruelayerService {
     const filter = { connection_name: connectionName };
     const connection: Omit<Connection, 'connection_name'> = {
       full_name: fullName,
-      access_token: accessToken,
-      refresh_token: refreshToken,
+      access_token: {
+        token: await encrypt(accessToken.token),
+        expires_in: accessToken.expires_in,
+      },
+      refresh_token: {
+        token: await encrypt(refreshToken.token),
+        expires_in: refreshToken.expires_in,
+      },
       metadata,
       accounts,
       cards,
@@ -224,12 +231,13 @@ export class TruelayerService {
       .select('access_token refresh_token')
       .exec();
     const accessToken = connections[0].access_token;
-    const refreshToken = connections[0].refresh_token;
-
+    accessToken.token = await decrypt(accessToken.token);
     if (this.shouldUseToken(accessToken)) {
       return accessToken;
     }
 
+    const refreshToken = connections[0].refresh_token;
+    refreshToken.token = await decrypt(refreshToken.token);
     if (this.shouldUseToken(refreshToken)) {
       const newAccessToken = await this.refreshAccessToken(refreshToken.token);
       await this.saveNewAccessToken(connectionName, newAccessToken);
@@ -270,8 +278,12 @@ export class TruelayerService {
 
   private async saveNewAccessToken(
     connectionName: string,
-    token: Token,
+    newToken: Token,
   ): Promise<void> {
+    const token: Token = {
+      token: await encrypt(newToken.token),
+      expires_in: newToken.expires_in,
+    };
     await ConnectionModel.findOneAndUpdate(
       { connection_name: connectionName },
       { access_token: token },
