@@ -1,4 +1,4 @@
-import { Kafka } from 'kafkajs';
+import { Kafka, Producer } from 'kafkajs';
 import jwt from 'jsonwebtoken';
 import config from '../config';
 import ConnectionModel from '../models/connection';
@@ -14,8 +14,8 @@ export interface DecodedState {
 }
 
 interface Tokens {
-  accessToken: Token;
-  refreshToken: Token;
+  access_token: Token;
+  refresh_token: Token;
 }
 
 enum TransactionSourceType {
@@ -23,7 +23,43 @@ enum TransactionSourceType {
   cards = 'cards',
 }
 
+interface TransactionSource {
+  account_id: string;
+  name: string;
+  type: TransactionSourceType;
+  sub_type: string;
+  provider: string;
+  balance?: number;
+  currency: string;
+}
+
+interface Transactions {
+  source: TransactionSource;
+  transactions: Transaction[]
+}
+
+interface Transaction {
+  timestamp: string;
+  description: string;
+  amount: number;
+  currency: string;
+  transaction_type: string;
+  transaction_category: string;
+  transaction_classification: string[];
+  merchant_name?: string;
+}
+
 export class TruelayerService {
+  private producer: Producer;
+
+  constructor() {
+    const kafka = new Kafka({
+      clientId: 'truelayer-service',
+      brokers: config.kafka.brokers,
+    });
+    this.producer = kafka.producer();
+  }
+
   getAuthURL(name: string, url: string): string {
     const state = jwt.sign(
       { name, url },
@@ -33,6 +69,7 @@ export class TruelayerService {
     const query = new URLSearchParams({
       response_type: 'code',
       client_id: config.truelayer.clientId,
+      // TODO: Integrate direct debits and standing orders too
       scope: 'info accounts balance cards transactions direct_debits standing_orders offline_access',
       redirect_uri: config.truelayer.redirectURI,
       providers: 'uk-ob-all uk-oauth-all',
@@ -61,32 +98,32 @@ export class TruelayerService {
     const tokens = await this.getTokens(code);
 
     // 2. Get connection metadata
-    const metadata = await this.getConnectionMetadata(tokens.accessToken.token);
+    const metadata = await this.getConnectionMetadata(tokens.access_token.token);
 
     // 3. Get user full name
-    const fullName = await this.getUserFullName(tokens.accessToken.token);
+    const fullName = await this.getUserFullName(tokens.access_token.token);
 
     // 4. Get accounts
     const accounts = await this.getTransactionSources(
       TransactionSourceType.accounts,
-      tokens.accessToken.token,
+      tokens.access_token.token,
     ) as Account[];
 
     // 5. Get cards
     const cards = await this.getTransactionSources(
       TransactionSourceType.cards,
-      tokens.accessToken.token,
+      tokens.access_token.token,
     ) as Card[];
 
-    // 6. Queue new asset messages
-    await this.queueNewAssets(name, metadata.provider, accounts, cards);
+    // 6. Queue transaction sources
+    await this.queueNewTransactionSources(name, metadata.provider, accounts, cards);
 
     // 7. Save all the information in the database
     const connection = await this.saveConnection(
       name,
       fullName,
-      tokens.accessToken,
-      tokens.refreshToken,
+      tokens.access_token,
+      tokens.refresh_token,
       metadata,
       accounts,
       cards,
@@ -99,9 +136,48 @@ export class TruelayerService {
     await ConnectionModel.deleteOne({ connection_name: name }).exec();
   }
 
-  async queueTransactions(connectionName?: string): Promise<void> {
-    // TODO
-    console.log('Called queueTransactions');
+  async queueTransactions(): Promise<void> {
+    const connections = await this.getConnections();
+    await Promise.all(
+      connections.map((connection) => this.queueTransactionsForConnection(connection)),
+    );
+  }
+
+  async queueTransactionsForConnectionName(name: string): Promise<void> {
+    const connection = await ConnectionModel.find({ connection_name: name }).exec();
+    if (connection.length > 0) {
+      await this.queueTransactionsForConnection(connection[0]);
+    }
+  }
+
+  private async queueTransactionsForConnection(connection: Connection): Promise<void> {
+    const accessToken = await this.getAccessToken(
+      connection.connection_name,
+      connection.access_token,
+      connection.refresh_token
+    );
+    if (!accessToken) {
+      console.log('Cannot get access token to queue transactions');
+      return;
+    }
+
+    const sources = this.mergeTransactionSources(
+      connection.connection_name,
+      connection.metadata.provider,
+      connection.accounts,
+      connection.cards
+    );
+    await Promise.all(
+      sources.map((source) => this.queueTransactionsForSource(accessToken.token, source)),
+    );
+  }
+
+  private async queueTransactionsForSource(
+    accessToken: string,
+    source: TransactionSource,
+  ): Promise<void> {
+    const transactions = await this.getTransactions(accessToken, source);
+    await this.publishTransactions(transactions);
   }
 
   private async getTokens(code: string): Promise<Tokens> {
@@ -132,7 +208,10 @@ export class TruelayerService {
       token: tokens.refresh_token,
       expires_in: new Date(now + (90 * 24 * 3600 * 1000)),
     };
-    return { accessToken, refreshToken };
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    };
   }
 
   private async getConnectionMetadata(accessToken: string): Promise<Metadata> {
@@ -204,14 +283,55 @@ export class TruelayerService {
     return balance.current;
   }
 
-  private async queueNewAssets(
+  private async queueNewTransactionSources(
     name: string,
     provider: Provider,
     accounts: Account[],
     cards: Card[],
   ): Promise<void> {
-    // TODO
-    console.log('Called queueNewAssets');
+    const connectionTransactions: Transactions[] = [];
+    const sources = this.mergeTransactionSources(name, provider, accounts, cards);
+    sources.forEach((source) => {
+      connectionTransactions.push({
+        source: source,
+        transactions: [],
+      });
+    });
+    await Promise.all(
+      connectionTransactions.map((transactions) => this.publishTransactions(transactions)),
+    );
+  }
+
+  private mergeTransactionSources(
+    name: string,
+    provider: Provider,
+    accounts: Account[],
+    cards: Card[],
+  ): TransactionSource[] {
+    const sources: TransactionSource[] = [];
+    accounts.forEach((account) => {
+      sources.push({
+        account_id: account.account_id,
+        name,
+        type: TransactionSourceType.accounts,
+        sub_type: account.account_type,
+        provider: provider.display_name,
+        balance: account.balance,
+        currency: account.currency,
+      });
+    });
+    cards.forEach((card) => {
+      sources.push({
+        account_id: card.account_id,
+        name,
+        type: TransactionSourceType.cards,
+        sub_type: card.card_type,
+        provider: provider.display_name,
+        balance: card.balance,
+        currency: card.currency,
+      });
+    });
+    return sources;
   }
 
   private async saveConnection(
@@ -243,25 +363,24 @@ export class TruelayerService {
     return { ...filter, ...connection };
   }
 
-  private async getAccessToken(connectionName: string): Promise<Token | undefined> {
-    const connections = await ConnectionModel.find({ connection_name: connectionName })
-      .select('access_token refresh_token')
-      .exec();
-    const accessToken = connections[0].access_token;
-    accessToken.token = await decrypt(accessToken.token);
-    if (this.shouldUseToken(accessToken)) {
-      return accessToken;
-    }
-
-    const refreshToken = connections[0].refresh_token;
-    refreshToken.token = await decrypt(refreshToken.token);
-    if (this.shouldUseToken(refreshToken)) {
-      const newAccessToken = await this.refreshAccessToken(refreshToken.token);
+  private async getAccessToken(
+    connectionName: string,
+    encryptedAccessToken: Token,
+    encryptedRefreshToken: Token,
+  ): Promise<Token | undefined> {
+    if (this.shouldUseToken(encryptedAccessToken)) {
+      return {
+        token: await decrypt(encryptedAccessToken.token),
+        expires_in: encryptedAccessToken.expires_in,
+      }
+    } else if (this.shouldUseToken(encryptedRefreshToken)) {
+      const refreshToken = await decrypt(encryptedRefreshToken.token);
+      const newAccessToken = await this.refreshAccessToken(refreshToken);
       await this.saveNewAccessToken(connectionName, newAccessToken);
       return newAccessToken;
+    } else {
+      return undefined;
     }
-
-    return undefined;
   }
 
   private shouldUseToken(token: Token): boolean {
@@ -307,9 +426,30 @@ export class TruelayerService {
     ).exec();
   }
 
-  private async getTransactions(accessToken: string) {
+  private async getTransactions(
+    accessToken: string,
+    source: TransactionSource,
+  ): Promise<Transactions> {
+    const requestHeaders = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    };
+    // TODO: Use 'from' and 'to' query parameters
+    // 'from' should be last_synced, 'to' should be now
+    const response = await fetch(`${config.truelayer.apiOrigin}/data/v1/${source.type}/${source.account_id}/transactions`, {
+      method: 'GET',
+      headers: requestHeaders,
+    });
+    const transactions = (await response.json()).results;
+    // TODO: Remove
+    console.log(transactions);
+    // TODO: Update last_synced
+    return transactions;
+  }
+
+  private async publishTransactions(transactions: Transactions): Promise<void> {
     // TODO
-    console.log('Called getTransactions');
+    console.log(transactions);
   }
 }
 

@@ -2,7 +2,6 @@ import { Schema } from 'mongoose';
 import { Metadata, MetadataSchema } from './metadata';
 import { Account, AccountSchema } from './account';
 import { Card, CardSchema } from './card';
-import config from '../config';
 
 export interface Connection {
   connection_name: string;

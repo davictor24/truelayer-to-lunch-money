@@ -93,7 +93,7 @@ export default function Connections(props: ConnectionsProps) {
             >
               <Stack spacing={0} direction="row" alignItems="center">
                 <Flex p={4}>
-                  <Avatar size="md" name={connection.provider.name} src={connection.provider.logoURL} />
+                  <Avatar size="md" name={connection.provider.name} src={connection.provider.logo_url} />
                 </Flex>
                 <Flex direction="column" p={2}>
                   <Text
@@ -111,7 +111,7 @@ export default function Connections(props: ConnectionsProps) {
                       _dark={{ color: 'gray.200' }}
                       fontSize={{ base: 'sm', sm: 'md' }}
                     >
-                      {dayjs(new Date(connection.lastSynced)).from(new Date())}
+                      {dayjs(new Date(connection.last_synced)).from(new Date())}
                     </Text>
                   </HStack>
                 </Flex>
@@ -130,10 +130,10 @@ export default function Connections(props: ConnectionsProps) {
               <ModalCloseButton />
               <ModalBody>
                 Last synced:&nbsp;
-                {dayjs(new Date(openedConnection.lastSynced)).from(new Date())}
+                {dayjs(new Date(openedConnection.last_synced)).from(new Date())}
                 <br />
                 Expires:&nbsp;
-                {dayjs(new Date()).to(new Date(openedConnection.expiresAt))}
+                {dayjs(new Date()).to(new Date(openedConnection.expires_at))}
               </ModalBody>
               <ModalFooter>
                 <Stack direction="row">

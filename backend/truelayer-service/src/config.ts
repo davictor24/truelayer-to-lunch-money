@@ -22,7 +22,6 @@ export default {
   kafka: {
     brokers: process.env.KAFKA_BROKERS ? process.env.KAFKA_BROKERS.split(',') : ['kafka:9092'],
     topics: {
-      newAsset: process.env.KAFKA_NEW_ASSET_TOPIC ?? 'new_asset',
       transactions: process.env.KAFKA_TRANSACTIONS_TOPIC ?? 'transactions',
     },
   },

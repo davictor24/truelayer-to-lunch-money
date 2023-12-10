@@ -3,11 +3,11 @@ import truelayerService from '../services/truelayer';
 
 interface ConnectionResponse {
   name: string;
-  lastSynced: number;
-  expiresAt: number;
+  last_synced: number;
+  expires_at: number;
   provider: {
     name: string;
-    logoURL: string;
+    logo_url: string;
   };
 }
 
@@ -45,11 +45,11 @@ export async function getConnections(_: Request, res: Response) {
   const connectionResponse = connections.map<ConnectionResponse>(
     (connection) => ({
       name: connection.connection_name,
-      lastSynced: connection.last_synced.getTime(),
-      expiresAt: connection.refresh_token.expires_in.getTime(),
+      last_synced: connection.last_synced.getTime(),
+      expires_at: connection.refresh_token.expires_in.getTime(),
       provider: {
         name: connection.metadata.provider.display_name,
-        logoURL: connection.metadata.provider.logo_uri,
+        logo_url: connection.metadata.provider.logo_uri,
       },
     }),
   );
@@ -64,6 +64,6 @@ export async function deleteConnection(req: Request, res: Response) {
 
 export async function queueTransactions(req: Request, res: Response) {
   const { name } = req.params;
-  await truelayerService.queueTransactions(name);
+  await truelayerService.queueTransactionsForConnectionName(name);
   res.status(204).send();
 }

@@ -2,11 +2,11 @@ import config from '../config';
 
 export interface Connection {
   name: string;
-  lastSynced: number;
-  expiresAt: number;
+  last_synced: number;
+  expires_at: number;
   provider: {
     name: string;
-    logoURL: string;
+    logo_url: string;
   };
 }
 
