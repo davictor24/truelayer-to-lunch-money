@@ -2,6 +2,7 @@ import { Schema } from 'mongoose';
 
 export interface Card {
   account_id: string;
+  balance: number;
   card_network: string;
   card_type: string;
   currency: string;

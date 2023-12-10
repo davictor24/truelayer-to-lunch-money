@@ -1,24 +1,22 @@
 export default {
-  port: process.env.PORT || 8080,
+  port: process.env.PORT ?? 8080,
   truelayer: {
-    apiOrigin: process.env.TRUELAYER_API_ORIGIN,
+    apiOrigin: process.env.TRUELAYER_API_ORIGIN ?? 'https://auth.truelayer.com',
     clientId: process.env.TRUELAYER_CLIENT_ID,
     clientSecret: process.env.TRUELAYER_CLIENT_SECRET,
     redirectURI: process.env.TRUELAYER_REDIRECT_URI,
     tokenEncryptionSecret: process.env.TRUELAYER_TOKEN_ENCRYPTION_SECRET,
   },
   mongo: {
-    url: process.env.MONGO_URL,
-    username: process.env.MONGO_USERNAME,
-    password: process.env.MONGO_PASSWORD,
+    url: process.env.MONGO_URL ?? 'mongodb://mongo:27017/connections',
+    username: process.env.MONGO_USERNAME ?? 'test',
+    password: process.env.MONGO_PASSWORD ?? 'test',
   },
   kafka: {
-    brokers: process.env.KAFKA_BROKERS.split(','),
-    topic: process.env.KAFKA_TOPIC,
-  },
-  deployedServices: {
-    lunchMoney: {
-      origin: process.env.LUNCH_MONEY_SERVICE_ORIGIN || 'http://lunch-money-service:8081',
+    brokers: process.env.KAFKA_BROKERS ? process.env.KAFKA_BROKERS.split(',') : ['kafka:9092'],
+    topics: {
+      newAsset: process.env.KAFKA_NEW_ASSET_TOPIC ?? 'new_asset',
+      transactions: process.env.KAFKA_TRANSACTIONS_TOPIC ?? 'transactions',
     },
   },
 };

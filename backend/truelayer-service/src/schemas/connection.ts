@@ -13,7 +13,7 @@ export interface Connection {
   metadata: Metadata;
   accounts: Account[];
   cards: Card[];
-  last_sync: Date;
+  last_synced: Date;
 }
 
 export interface Token {
@@ -32,12 +32,12 @@ TokenSchema.plugin(fieldEncryption, {
 });
 
 export const ConnectionSchema = new Schema<Connection>({
-  connection_name: { type: String, required: true },
+  connection_name: { type: String, required: true, unique: true },
   full_name: { type: String, required: true },
   access_token: { type: TokenSchema, required: true },
   refresh_token: { type: TokenSchema, required: true },
   metadata: { type: MetadataSchema, required: true },
   accounts: { type: [AccountSchema], required: true },
   cards: { type: [CardSchema], required: true },
-  last_sync: { type: Date, required: true },
+  last_synced: { type: Date, required: true },
 });

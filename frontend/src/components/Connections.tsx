@@ -29,21 +29,17 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
 
 interface Connection {
-  id: string;
   name: string;
   lastSynced: number;
   expiresAt: number;
-  provider: ConnectionProvider;
-}
-
-interface ConnectionProvider {
-  name: string;
-  logoURL: string;
+  provider: {
+    name: string;
+    logoURL: string;
+  };
 }
 
 const connections: Connection[] = [
   {
-    id: 'aaa',
     name: 'Victor\'s Monzo account',
     lastSynced: Date.now() - 10 * 60 * 1000,
     expiresAt: 1709591611688,
@@ -53,7 +49,6 @@ const connections: Connection[] = [
     },
   },
   {
-    id: 'bbb',
     name: 'Peipei\'s Monzo account',
     lastSynced: Date.now() - 15 * 60 * 1000,
     expiresAt: 1706135611688,
@@ -102,7 +97,7 @@ export default function Connections() {
         spacing={0}
       >
         {connections.map((connection, index) => (
-          <Fragment key={connection.id}>
+          <Fragment key={connection.name}>
             <Flex
               w="100%"
               justify="space-between"

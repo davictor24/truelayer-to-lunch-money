@@ -7,9 +7,8 @@ import {
   auth,
   getConnections,
   createConnection,
-  updateConnection,
   deleteConnection,
-  forceSyncTransactions,
+  queueTransactions,
 } from './controllers/truelayer';
 import truelayerService from './services/truelayer';
 
@@ -24,10 +23,9 @@ mongoose.connect(config.mongo.url, {
 app.get('/', health);
 app.get('/auth', auth);
 app.get('/connections', getConnections);
-app.post('/connections', createConnection);
-app.patch('/connections/:id', updateConnection);
-app.delete('/connections/:id', deleteConnection);
-app.post('/sync', forceSyncTransactions);
+app.put('/connections/:name', createConnection);
+app.delete('/connections/:name', deleteConnection);
+app.post('/sync/:name', queueTransactions);
 
 cron.schedule('*/15 * * * *', () => {
   truelayerService.queueTransactions();
