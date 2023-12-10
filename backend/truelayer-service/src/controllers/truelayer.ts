@@ -12,15 +12,31 @@ interface ConnectionResponse {
 }
 
 export async function auth(req: Request, res: Response) {
-  const { name, state } = req.query;
+  const { name, url } = req.query;
   if (typeof name !== 'string') {
     res.status(400).send('Invalid connection name');
-  } else if (!(await truelayerService.isNewConnectionName(name))) {
-    res.status(400).send('Connection name should be unique');
+  } else if (typeof url !== 'string') {
+    res.status(400).send('Invalid URL parameter');
+  } else {
+    res.json({ authURL: truelayerService.getAuthURL(name, url) });
+  }
+}
+
+export async function redirect(req: Request, res: Response) {
+  const { code, state } = req.query;
+  if (typeof code !== 'string') {
+    res.status(400).send('Invalid code parameter');
   } else if (typeof state !== 'string') {
     res.status(400).send('Invalid state parameter');
   } else {
-    res.json({ authURL: truelayerService.getAuthURL(state) });
+    try {
+      const decodedState = truelayerService.decodeState(state);
+      await truelayerService.createConnection(decodedState.name, code);
+      res.set('Location', decodedState.url);
+      res.status(301).send();
+    } catch (err) {
+      res.status(400).send(err.message);
+    }
   }
 }
 
@@ -38,13 +54,6 @@ export async function getConnections(_: Request, res: Response) {
     }),
   );
   res.json(connectionResponse);
-}
-
-export async function createConnection(req: Request, res: Response) {
-  const { name } = req.params;
-  const { code } = req.body;
-  const connection = await truelayerService.createConnection(name, code);
-  res.status(201).send(connection);
 }
 
 export async function deleteConnection(req: Request, res: Response) {

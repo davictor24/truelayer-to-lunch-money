@@ -1,4 +1,5 @@
 import { Kafka } from 'kafkajs';
+import jwt from 'jsonwebtoken';
 import config from '../config';
 import ConnectionModel from '../models/connection';
 import { Connection, Token } from '../schemas/connection';
@@ -6,6 +7,11 @@ import { Metadata, Provider } from '../schemas/metadata';
 import { Account } from '../schemas/account';
 import { Card } from '../schemas/card';
 import { encrypt, decrypt } from '../utils/encryption';
+
+export interface DecodedState {
+  name: string,
+  url: string
+}
 
 interface Tokens {
   accessToken: Token;
@@ -18,12 +24,12 @@ enum TransactionSourceType {
 }
 
 export class TruelayerService {
-  async isNewConnectionName(name: string): Promise<boolean> {
-    const records = await ConnectionModel.find({ connection_name: name }).exec();
-    return records.length === 0;
-  }
-
-  getAuthURL(state: string): string {
+  getAuthURL(name: string, url: string): string {
+    const state = jwt.sign(
+      { name, url },
+      config.truelayer.stateSignature.secret,
+      { expiresIn: 300 },
+    );
     const query = new URLSearchParams({
       response_type: 'code',
       client_id: config.truelayer.clientId,
@@ -37,6 +43,17 @@ export class TruelayerService {
 
   async getConnections(): Promise<Connection[]> {
     return ConnectionModel.find({}).exec();
+  }
+
+  decodeState(state: string): DecodedState {
+    const decodedState = jwt.verify(
+      state,
+      config.truelayer.stateSignature.secret,
+    ) as DecodedState;
+    if (typeof decodedState.name !== 'string' || typeof decodedState.url !== 'string') {
+      throw new Error('Invalid state');
+    }
+    return decodedState;
   }
 
   async createConnection(name: string, code: string): Promise<Connection> {

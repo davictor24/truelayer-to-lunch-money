@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
   ChakraProvider,
   Box,
@@ -17,16 +17,53 @@ import {
   ModalHeader,
   ModalOverlay,
   Input,
+  useToast,
 } from '@chakra-ui/react';
 import { FaPlus } from 'react-icons/fa';
 import ColorModeSwitcher from './components/ColorModeSwitcher';
 import Connections from './components/Connections';
+import truelayerService, { Connection } from './services/truelayer';
 
 export default function App() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const initialRef = useRef(null);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [newConnectionName, setNewConnectionName] = useState<string>('');
+  const toast = useToast();
 
-  const newConnection = () => { };
+  const getConnections = async () => {
+    const promise = async () => {
+      setConnections(await truelayerService.getConnections());
+    };
+    toast.promise(promise(), {
+      success: { title: 'Connections fetched successfully', description: 'Looks great' },
+      error: (err) => ({ title: 'An error occurred', description: err.message }),
+      loading: { title: 'Fetching connections...', description: 'Please wait' },
+    });
+  };
+
+  const connect = async (name: string) => {
+    onClose();
+    toast.promise(truelayerService.connect(name), {
+      success: { title: 'Preparing to connect...', description: 'You will be redirected to TrueLayer' },
+      error: (err) => ({ title: 'An error occurred', description: err.message }),
+      loading: { title: 'Preparing to connect...', description: 'Please wait' },
+    });
+  };
+
+  const disconnect = async (name: string) => {
+    const promise = truelayerService.disconnect(name);
+    toast.promise(promise, {
+      success: { title: 'Disconnected successfully', description: 'Looks great' },
+      error: (err) => ({ title: 'An error occurred', description: err.message }),
+      loading: { title: 'Disconnecting...', description: 'Please wait' },
+    });
+    promise.then(() => getConnections());
+  };
+
+  useEffect(() => {
+    getConnections();
+  }, []);
 
   return (
     <ChakraProvider theme={theme}>
@@ -38,7 +75,14 @@ export default function App() {
             &nbsp;
             <IconButton aria-label="Add connection" size="lg" onClick={onOpen} icon={<FaPlus />} />
           </Text>
-          <Connections />
+          {connections.length > 0
+            ? (
+              <Connections
+                connections={connections}
+                connect={connect}
+                disconnect={disconnect}
+              />
+            ) : <Text align="center" fontSize="md">No connections</Text>}
         </Grid>
       </Box>
       {isOpen
@@ -55,10 +99,14 @@ export default function App() {
               <ModalHeader>New bank connection</ModalHeader>
               <ModalCloseButton />
               <ModalBody>
-                <Input ref={initialRef} placeholder="Name e.g. 'My Monzo account'" />
+                <Input
+                  ref={initialRef}
+                  onChange={(e) => setNewConnectionName(e.currentTarget.value)}
+                  placeholder="Name e.g. 'My Monzo account'"
+                />
               </ModalBody>
               <ModalFooter>
-                <Button onClick={newConnection}>Next</Button>
+                <Button onClick={() => connect(newConnectionName)}>Next</Button>
               </ModalFooter>
             </ModalContent>
           </Modal>

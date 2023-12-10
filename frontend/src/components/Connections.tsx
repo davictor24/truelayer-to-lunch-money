@@ -25,41 +25,18 @@ import {
 import { FaRegClock } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { Connection } from '../services/truelayer';
 
 dayjs.extend(relativeTime);
 
-interface Connection {
-  name: string;
-  lastSynced: number;
-  expiresAt: number;
-  provider: {
-    name: string;
-    logoURL: string;
-  };
+interface ConnectionsProps {
+  connections: Connection[];
+  connect: (name: string) => void;
+  disconnect: (name: string) => void;
 }
 
-const connections: Connection[] = [
-  {
-    name: 'Victor\'s Monzo account',
-    lastSynced: Date.now() - 10 * 60 * 1000,
-    expiresAt: 1709591611688,
-    provider: {
-      name: 'Monzo',
-      logoURL: 'https://truelayer-client-logos.s3-eu-west-1.amazonaws.com/banks/banks-icons/ob-monzo-icon.svg',
-    },
-  },
-  {
-    name: 'Peipei\'s Monzo account',
-    lastSynced: Date.now() - 15 * 60 * 1000,
-    expiresAt: 1706135611688,
-    provider: {
-      name: 'Monzo',
-      logoURL: 'https://truelayer-client-logos.s3-eu-west-1.amazonaws.com/banks/banks-icons/ob-monzo-icon.svg',
-    },
-  },
-];
-
-export default function Connections() {
+export default function Connections(props: ConnectionsProps) {
+  const { connections, connect, disconnect } = props;
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [openedConnection, setOpenedConnection] = useState<Connection | undefined>();
   const toast = useToast();
@@ -69,7 +46,18 @@ export default function Connections() {
     onOpen();
   };
 
+  const handleConnect = (name: string) => {
+    onClose();
+    connect(name);
+  };
+
+  const handleDisconnect = (name: string) => {
+    onClose();
+    disconnect(name);
+  };
+
   const sync = () => {
+    // TODO
     const dummyPromise = new Promise((resolve) => {
       setTimeout(() => resolve(200), 2000);
     });
@@ -79,10 +67,6 @@ export default function Connections() {
       loading: { title: 'Syncing...', description: 'Please wait' },
     });
   };
-
-  const auth = () => { };
-
-  const disconnect = () => { };
 
   return (
     <Container p={{ base: 5, md: 10 }}>
@@ -154,8 +138,8 @@ export default function Connections() {
               <ModalFooter>
                 <Stack direction="row">
                   <Button onClick={sync}>Sync</Button>
-                  <Button onClick={auth}>Authenticate</Button>
-                  <Button onClick={disconnect} colorScheme="red">Disconnect</Button>
+                  <Button onClick={() => handleConnect(openedConnection.name)}>Authenticate</Button>
+                  <Button onClick={() => handleDisconnect(openedConnection.name)} colorScheme="red">Disconnect</Button>
                 </Stack>
               </ModalFooter>
             </ModalContent>
