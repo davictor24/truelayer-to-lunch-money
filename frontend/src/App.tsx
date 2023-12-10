@@ -31,18 +31,23 @@ export default function App() {
   const [newConnectionName, setNewConnectionName] = useState<string>('');
   const toast = useToast();
 
-  const getConnections = async () => {
+  const getConnections = (showToast = false) => {
     const promise = async () => {
       setConnections(await truelayerService.getConnections());
     };
-    toast.promise(promise(), {
-      success: { title: 'Connections fetched successfully', description: 'Looks great' },
-      error: (err) => ({ title: 'An error occurred', description: err.message }),
-      loading: { title: 'Fetching connections...', description: 'Please wait' },
-    });
+
+    if (showToast) {
+      toast.promise(promise(), {
+        success: { title: 'Connections fetched successfully', description: 'Looks great' },
+        error: (err) => ({ title: 'An error occurred', description: err.message }),
+        loading: { title: 'Fetching connections...', description: 'Please wait' },
+      });
+    } else {
+      promise();
+    }
   };
 
-  const connect = async (name: string) => {
+  const connect = (name: string) => {
     onClose();
     toast.promise(truelayerService.connect(name), {
       success: { title: 'Preparing to connect...', description: 'You will be redirected to TrueLayer' },
@@ -51,7 +56,7 @@ export default function App() {
     });
   };
 
-  const disconnect = async (name: string) => {
+  const disconnect = (name: string) => {
     const promise = truelayerService.disconnect(name);
     toast.promise(promise, {
       success: { title: 'Disconnected successfully', description: 'Looks great' },
@@ -61,8 +66,18 @@ export default function App() {
     promise.then(() => getConnections());
   };
 
+  const sync = (name: string) => {
+    const promise = truelayerService.sync(name);
+    toast.promise(promise, {
+      success: { title: 'Sync successful', description: 'Looks great' },
+      error: { title: 'Sync failed', description: 'Something went wrong' },
+      loading: { title: 'Syncing...', description: 'Please wait' },
+    });
+    promise.then(() => getConnections());
+  };
+
   useEffect(() => {
-    getConnections();
+    getConnections(true);
   }, []);
 
   return (
@@ -81,6 +96,7 @@ export default function App() {
                 connections={connections}
                 connect={connect}
                 disconnect={disconnect}
+                sync={sync}
               />
             ) : <Text align="center" fontSize="md">No connections</Text>}
         </Grid>

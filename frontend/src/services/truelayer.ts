@@ -55,6 +55,16 @@ export class TruelayerService {
     }
   }
 
+  async sync(name: string): Promise<void> {
+    const response = await fetch(
+      `${this.apiOrigin}/connections/sync/${this.encodeRFC3986URIComponent(name)}`,
+      { method: 'POST' },
+    );
+    if (response.status !== 204) {
+      throw new Error(`Failed to sync '${name}'`);
+    }
+  }
+
   private encodeRFC3986URIComponent(str: string) {
     return encodeURIComponent(str).replace(
       /[!'()*]/g,

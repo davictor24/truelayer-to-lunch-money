@@ -20,7 +20,6 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
-  useToast,
 } from '@chakra-ui/react';
 import { FaRegClock } from 'react-icons/fa';
 import dayjs from 'dayjs';
@@ -33,13 +32,18 @@ interface ConnectionsProps {
   connections: Connection[];
   connect: (name: string) => void;
   disconnect: (name: string) => void;
+  sync: (name: string) => void;
 }
 
 export default function Connections(props: ConnectionsProps) {
-  const { connections, connect, disconnect } = props;
+  const {
+    connections,
+    connect,
+    disconnect,
+    sync,
+  } = props;
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [openedConnection, setOpenedConnection] = useState<Connection | undefined>();
-  const toast = useToast();
 
   const handleOpen = (connectionIdx: number) => {
     setOpenedConnection(connections[connectionIdx]);
@@ -56,16 +60,9 @@ export default function Connections(props: ConnectionsProps) {
     disconnect(name);
   };
 
-  const sync = () => {
-    // TODO
-    const dummyPromise = new Promise((resolve) => {
-      setTimeout(() => resolve(200), 2000);
-    });
-    toast.promise(dummyPromise, {
-      success: { title: 'Sync successful', description: 'Looks great' },
-      error: { title: 'Sync failed', description: 'Something went wrong' },
-      loading: { title: 'Syncing...', description: 'Please wait' },
-    });
+  const handleSync = (name: string) => {
+    onClose();
+    sync(name);
   };
 
   return (
@@ -137,7 +134,7 @@ export default function Connections(props: ConnectionsProps) {
               </ModalBody>
               <ModalFooter>
                 <Stack direction="row">
-                  <Button onClick={sync}>Sync</Button>
+                  <Button onClick={() => handleSync(openedConnection.name)}>Sync</Button>
                   <Button onClick={() => handleConnect(openedConnection.name)}>Authenticate</Button>
                   <Button onClick={() => handleDisconnect(openedConnection.name)} colorScheme="red">Disconnect</Button>
                 </Stack>

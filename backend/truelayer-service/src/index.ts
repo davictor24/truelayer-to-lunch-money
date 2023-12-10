@@ -27,7 +27,7 @@ app.get('/auth', auth);
 app.get('/redirect', redirect);
 app.get('/connections', getConnections);
 app.delete('/connections/:name', deleteConnection);
-app.post('/sync/:name', queueTransactions);
+app.post('/connections/sync/:name', queueTransactions);
 
 cron.schedule('*/15 * * * *', () => {
   truelayerService.queueTransactions();

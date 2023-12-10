@@ -23,6 +23,11 @@ enum TransactionSourceType {
   cards = 'cards',
 }
 
+interface Transactions {
+  source: TransactionSource;
+  transactions: Transaction[]
+}
+
 interface TransactionSource {
   account_id: string;
   name: string;
@@ -31,11 +36,6 @@ interface TransactionSource {
   provider: string;
   balance?: number;
   currency: string;
-}
-
-interface Transactions {
-  source: TransactionSource;
-  transactions: Transaction[]
 }
 
 interface Transaction {
@@ -63,7 +63,7 @@ export class TruelayerService {
   getAuthURL(name: string, url: string): string {
     const state = jwt.sign(
       { name, url },
-      config.truelayer.stateSignature.secret,
+      config.truelayer.state.secret,
       { expiresIn: 300 },
     );
     const query = new URLSearchParams({
@@ -85,7 +85,7 @@ export class TruelayerService {
   decodeState(state: string): DecodedState {
     const decodedState = jwt.verify(
       state,
-      config.truelayer.stateSignature.secret,
+      config.truelayer.state.secret,
     ) as DecodedState;
     if (typeof decodedState.name !== 'string' || typeof decodedState.url !== 'string') {
       throw new Error('Invalid state');
@@ -118,7 +118,7 @@ export class TruelayerService {
     // 6. Queue transaction sources
     await this.queueNewTransactionSources(name, metadata.provider, accounts, cards);
 
-    // 7. Save all the information in the database
+    // 7. Save all the information into the database
     const connection = await this.saveConnection(
       name,
       fullName,
@@ -154,7 +154,7 @@ export class TruelayerService {
     const accessToken = await this.getAccessToken(
       connection.connection_name,
       connection.access_token,
-      connection.refresh_token
+      connection.refresh_token,
     );
     if (!accessToken) {
       console.log('Cannot get access token to queue transactions');
@@ -165,19 +165,36 @@ export class TruelayerService {
       connection.connection_name,
       connection.metadata.provider,
       connection.accounts,
-      connection.cards
+      connection.cards,
     );
     await Promise.all(
-      sources.map((source) => this.queueTransactionsForSource(accessToken.token, source)),
+      sources.map((source) => this.queueTransactionsForSource(
+        connection.connection_name,
+        accessToken.token,
+        source,
+        connection.last_synced,
+      )),
     );
   }
 
   private async queueTransactionsForSource(
+    connectionName: string,
     accessToken: string,
     source: TransactionSource,
+    lastSynced: Date,
   ): Promise<void> {
-    const transactions = await this.getTransactions(accessToken, source);
-    await this.publishTransactions(transactions);
+    const now = new Date();
+    const transactions = await this.getTransactions(
+      accessToken,
+      source,
+      lastSynced,
+      now,
+    );
+    await this.publishTransactions({ source, transactions });
+    await ConnectionModel.findOneAndUpdate(
+      { connection_name: connectionName },
+      { last_synced: now },
+    ).exec();
   }
 
   private async getTokens(code: string): Promise<Tokens> {
@@ -293,7 +310,7 @@ export class TruelayerService {
     const sources = this.mergeTransactionSources(name, provider, accounts, cards);
     sources.forEach((source) => {
       connectionTransactions.push({
-        source: source,
+        source,
         transactions: [],
       });
     });
@@ -372,15 +389,15 @@ export class TruelayerService {
       return {
         token: await decrypt(encryptedAccessToken.token),
         expires_in: encryptedAccessToken.expires_in,
-      }
-    } else if (this.shouldUseToken(encryptedRefreshToken)) {
+      };
+    }
+    if (this.shouldUseToken(encryptedRefreshToken)) {
       const refreshToken = await decrypt(encryptedRefreshToken.token);
       const newAccessToken = await this.refreshAccessToken(refreshToken);
       await this.saveNewAccessToken(connectionName, newAccessToken);
       return newAccessToken;
-    } else {
-      return undefined;
     }
+    return undefined;
   }
 
   private shouldUseToken(token: Token): boolean {
@@ -429,27 +446,38 @@ export class TruelayerService {
   private async getTransactions(
     accessToken: string,
     source: TransactionSource,
-  ): Promise<Transactions> {
+    from: Date,
+    to: Date,
+  ): Promise<Transaction[]> {
+    const query = new URLSearchParams({
+      from: from.toISOString(),
+      to: to.toISOString(),
+    });
     const requestHeaders = {
       Accept: 'application/json',
       Authorization: `Bearer ${accessToken}`,
     };
-    // TODO: Use 'from' and 'to' query parameters
-    // 'from' should be last_synced, 'to' should be now
-    const response = await fetch(`${config.truelayer.apiOrigin}/data/v1/${source.type}/${source.account_id}/transactions`, {
-      method: 'GET',
-      headers: requestHeaders,
-    });
-    const transactions = (await response.json()).results;
-    // TODO: Remove
-    console.log(transactions);
-    // TODO: Update last_synced
-    return transactions;
+    const response = await fetch(
+      `${config.truelayer.apiOrigin}/data/v1/${source.type}/${source.account_id}/transactions?${query.toString()}`,
+      {
+        method: 'GET',
+        headers: requestHeaders,
+      },
+    );
+    return (await response.json()).results;
   }
 
   private async publishTransactions(transactions: Transactions): Promise<void> {
-    // TODO
-    console.log(transactions);
+    if (transactions.transactions.length === 0) {
+      return;
+    }
+    await this.producer.connect();
+    await this.producer.send({
+      topic: config.kafka.topics.transactions,
+      messages: [
+        { value: JSON.stringify(transactions) },
+      ],
+    });
   }
 }
 
