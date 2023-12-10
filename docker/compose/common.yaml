@@ -18,7 +18,10 @@ services:
       context: ../../backend/truelayer-service
     image: truelayer-to-lunch-money/truelayer-service:0.1.0
     environment:
-      NODE_ENV: docker-compose
+      TRUELAYER_CLIENT_ID: $TRUELAYER_CLIENT_ID
+      TRUELAYER_CLIENT_SECRET: $TRUELAYER_CLIENT_SECRET
+      TRUELAYER_REDIRECT_URI: $TRUELAYER_REDIRECT_URI
+      TRUELAYER_TOKEN_ENCRYPTION_SECRET: $TRUELAYER_TOKEN_ENCRYPTION_SECRET
     ports:
       - 8080:8080
 
@@ -29,8 +32,6 @@ services:
     build:
       context: ../../backend/lunch-money-service
     image: truelayer-to-lunch-money/lunch-money-service:0.1.0
-    environment:
-      NODE_ENV: docker-compose
     ports:
       - 8081:8081
 

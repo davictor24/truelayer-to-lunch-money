@@ -31,7 +31,7 @@ export class TruelayerService {
       providers: 'uk-ob-all uk-oauth-all',
       state,
     });
-    return `${config.truelayer.apiOrigin}?${query.toString()}`;
+    return `${config.truelayer.authOrigin}?${query.toString()}`;
   }
 
   async getConnections(): Promise<Connection[]> {
@@ -46,7 +46,7 @@ export class TruelayerService {
     const metadata = await this.getConnectionMetadata(tokens.accessToken.token);
 
     // 3. Get user full name
-    const fullName = await this.getUserFullName(tokens.refreshToken.token);
+    const fullName = await this.getUserFullName(tokens.accessToken.token);
 
     // 4. Get accounts
     const accounts = await this.getTransactionSources(
@@ -98,7 +98,7 @@ export class TruelayerService {
       grant_type: 'authorization_code',
       redirect_uri: config.truelayer.redirectURI,
     };
-    const response = await fetch(`${config.truelayer.apiOrigin}/connect/token`, {
+    const response = await fetch(`${config.truelayer.authOrigin}/connect/token`, {
       method: 'POST',
       headers: requestHeaders,
       body: JSON.stringify(requestBody),
@@ -126,7 +126,8 @@ export class TruelayerService {
       method: 'GET',
       headers: requestHeaders,
     });
-    return response.json();
+    const metadata = (await response.json()).results[0];
+    return metadata;
   }
 
   private async getUserFullName(accessToken: string): Promise<string> {
@@ -253,7 +254,7 @@ export class TruelayerService {
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     };
-    const response = await fetch(`${config.truelayer.apiOrigin}/connect/token`, {
+    const response = await fetch(`${config.truelayer.authOrigin}/connect/token`, {
       method: 'POST',
       headers: requestHeaders,
       body: JSON.stringify(requestBody),

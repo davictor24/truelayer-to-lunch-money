@@ -1,7 +1,8 @@
 export default {
   port: process.env.PORT ?? 8080,
   truelayer: {
-    apiOrigin: process.env.TRUELAYER_API_ORIGIN ?? 'https://auth.truelayer.com',
+    authOrigin: process.env.TRUELAYER_AUTH_ORIGIN ?? 'https://auth.truelayer.com',
+    apiOrigin: process.env.TRUELAYER_API_ORIGIN ?? 'https://api.truelayer.com',
     clientId: process.env.TRUELAYER_CLIENT_ID,
     clientSecret: process.env.TRUELAYER_CLIENT_SECRET,
     redirectURI: process.env.TRUELAYER_REDIRECT_URI,

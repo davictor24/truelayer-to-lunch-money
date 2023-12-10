@@ -1,3 +1,4 @@
 data/kafka
 data/mongo/db
 data/zookeeper
+env.sh
