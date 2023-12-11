@@ -26,6 +26,7 @@ interface Transactions {
 interface TransactionSource {
   account_id: string;
   name: string;
+  connection_name: string;
   type: 'account' | 'card';
   sub_type: string;
   provider: string;
@@ -41,6 +42,7 @@ interface Transaction {
   transaction_type: string;
   transaction_category: string;
   transaction_classification: string[];
+  normalised_provider_transaction_id?: string;
   merchant_name?: string;
 }
 
@@ -324,7 +326,8 @@ export class TruelayerService {
     accounts.forEach((account) => {
       sources.push({
         account_id: account.account_id,
-        name: `${name} / ${account.display_name}`,
+        name: account.display_name,
+        connection_name: name,
         type: 'account',
         sub_type: account.account_type,
         provider: provider.display_name,
@@ -335,7 +338,8 @@ export class TruelayerService {
     cards.forEach((card) => {
       sources.push({
         account_id: card.account_id,
-        name: `${name} / ${card.display_name}`,
+        name: card.display_name,
+        connection_name: name,
         type: 'card',
         sub_type: card.card_type,
         provider: provider.display_name,
@@ -463,15 +467,17 @@ export class TruelayerService {
   }
 
   private async publishTransactions(transactions: Transactions): Promise<void> {
-    // TODO: Uncomment
-    // if (transactions.transactions.length === 0) {
-    //   return;
-    // }
+    if (transactions.transactions.length === 0 && !transactions.source.balance) {
+      return;
+    }
     await this.producer.connect();
     await this.producer.send({
       topic: config.kafka.topics.transactions,
       messages: [
-        { value: JSON.stringify(transactions) },
+        {
+          key: `${transactions.source.connection_name}|${transactions.source.name}`,
+          value: JSON.stringify(transactions),
+        },
       ],
     });
   }
