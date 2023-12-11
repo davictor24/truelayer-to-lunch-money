@@ -1,12 +1,15 @@
 import express, { Request, Response } from 'express';
+import config from './config';
+import lunchMoneyService from './services/lunchMoney';
 
 const app = express();
-const port = 8081;
 
 app.get('/', (_: Request, res: Response) => {
-  res.send('Hello world');
+  res.send('OK');
 });
 
-app.listen(port, () => {
-  console.log(`Server started at port ${port}`);
+lunchMoneyService.startConsumer();
+
+app.listen(config.port, () => {
+  console.log(`Server started at port ${config.port}`);
 });

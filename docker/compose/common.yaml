@@ -34,6 +34,8 @@ services:
     build:
       context: ../../backend/lunch-money-service
     image: truelayer-to-lunch-money/lunch-money-service:0.1.0
+    environment:
+      LUNCH_MONEY_ACCESS_TOKEN: $LUNCH_MONEY_ACCESS_TOKEN
     ports:
       - 8081:8081
 

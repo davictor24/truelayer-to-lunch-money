@@ -18,11 +18,6 @@ interface Tokens {
   refresh_token: Token;
 }
 
-enum TransactionSourceType {
-  accounts = 'accounts',
-  cards = 'cards',
-}
-
 interface Transactions {
   source: TransactionSource;
   transactions: Transaction[]
@@ -31,7 +26,7 @@ interface Transactions {
 interface TransactionSource {
   account_id: string;
   name: string;
-  type: TransactionSourceType;
+  type: 'account' | 'card';
   sub_type: string;
   provider: string;
   balance?: number;
@@ -105,13 +100,13 @@ export class TruelayerService {
 
     // 4. Get accounts
     const accounts = await this.getTransactionSources(
-      TransactionSourceType.accounts,
+      'accounts',
       tokens.access_token.token,
     ) as Account[];
 
     // 5. Get cards
     const cards = await this.getTransactionSources(
-      TransactionSourceType.cards,
+      'cards',
       tokens.access_token.token,
     ) as Card[];
 
@@ -258,7 +253,7 @@ export class TruelayerService {
   }
 
   private async getTransactionSources(
-    sourceType: TransactionSourceType,
+    sourceType: 'accounts' | 'cards',
     accessToken: string,
   ): Promise<Account[] | Card[]> {
     const requestHeaders = {
@@ -285,7 +280,7 @@ export class TruelayerService {
 
   private async getBalance(
     accountID: string,
-    sourceType: TransactionSourceType,
+    sourceType: 'accounts' | 'cards',
     accessToken: string,
   ): Promise<number> {
     const requestHeaders = {
@@ -329,8 +324,8 @@ export class TruelayerService {
     accounts.forEach((account) => {
       sources.push({
         account_id: account.account_id,
-        name,
-        type: TransactionSourceType.accounts,
+        name: `${name} / ${account.display_name}`,
+        type: 'account',
         sub_type: account.account_type,
         provider: provider.display_name,
         balance: account.balance,
@@ -340,8 +335,8 @@ export class TruelayerService {
     cards.forEach((card) => {
       sources.push({
         account_id: card.account_id,
-        name,
-        type: TransactionSourceType.cards,
+        name: `${name} / ${card.display_name}`,
+        type: 'card',
         sub_type: card.card_type,
         provider: provider.display_name,
         balance: card.balance,
@@ -458,7 +453,7 @@ export class TruelayerService {
       Authorization: `Bearer ${accessToken}`,
     };
     const response = await fetch(
-      `${config.truelayer.apiOrigin}/data/v1/${source.type}/${source.account_id}/transactions?${query.toString()}`,
+      `${config.truelayer.apiOrigin}/data/v1/${source.type}s/${source.account_id}/transactions?${query.toString()}`,
       {
         method: 'GET',
         headers: requestHeaders,
@@ -468,9 +463,10 @@ export class TruelayerService {
   }
 
   private async publishTransactions(transactions: Transactions): Promise<void> {
-    if (transactions.transactions.length === 0) {
-      return;
-    }
+    // TODO: Uncomment
+    // if (transactions.transactions.length === 0) {
+    //   return;
+    // }
     await this.producer.connect();
     await this.producer.send({
       topic: config.kafka.topics.transactions,
