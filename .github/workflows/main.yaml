@@ -1,0 +1,129 @@
+name: Main
+on: [push]
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "21.x"
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint:check
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache/frontend
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: frontend
+          push: ${{ github.ref == 'refs/heads/master' }}
+          tags: lunchmoneysync/frontend
+          cache-from: type=local,src=/tmp/.buildx-cache/frontend
+          cache-to: type=local,dest=/tmp/.buildx-cache-new/frontend
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache/frontend
+          mv /tmp/.buildx-cache-new/frontend /tmp/.buildx-cache/frontend
+
+  truelayer-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/truelayer-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "21.x"
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint:check
+      - name: Test
+        run: npm test
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache/truelayer-service
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: backend/truelayer-service
+          push: ${{ github.ref == 'refs/heads/master' }}
+          tags: lunchmoneysync/truelayer-service
+          cache-from: type=local,src=/tmp/.buildx-cache/truelayer-service
+          cache-to: type=local,dest=/tmp/.buildx-cache-new/truelayer-service
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache/truelayer-service
+          mv /tmp/.buildx-cache-new/truelayer-service /tmp/.buildx-cache/truelayer-service
+
+  lunch-money-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/lunch-money-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "21.x"
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint:check
+      - name: Test
+        run: npm test
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache/lunch-money-service
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: backend/lunch-money-service
+          push: ${{ github.ref == 'refs/heads/master' }}
+          tags: lunchmoneysync/lunch-money-service
+          cache-from: type=local,src=/tmp/.buildx-cache/lunch-money-service
+          cache-to: type=local,dest=/tmp/.buildx-cache-new/lunch-money-service
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache/lunch-money-service
+          mv /tmp/.buildx-cache-new/lunch-money-service /tmp/.buildx-cache/lunch-money-service
