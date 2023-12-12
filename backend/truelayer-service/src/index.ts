@@ -33,6 +33,10 @@ cron.schedule('*/15 * * * *', () => {
   truelayerService.queueTransactions();
 });
 
+cron.schedule('0 0 * * *', () => {
+  truelayerService.queueTransactions(new Date(Date.now() - 30 * 24 * 3600 * 1000));
+});
+
 app.listen(config.port, () => {
   console.log(`Server started at port ${config.port}`);
 });

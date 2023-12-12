@@ -39,6 +39,7 @@ interface Transaction {
   description: string;
   amount: number;
   currency: string;
+  status: 'cleared' | 'uncleared';
   transaction_type: string;
   transaction_category: string;
   transaction_classification: string[];
@@ -133,21 +134,30 @@ export class TruelayerService {
     await ConnectionModel.deleteOne({ connection_name: name }).exec();
   }
 
-  async queueTransactions(): Promise<void> {
+  async queueTransactions(from?: Date): Promise<void> {
     const connections = await this.getConnections();
     await Promise.all(
-      connections.map((connection) => this.queueTransactionsForConnection(connection)),
+      connections.map((connection) => this.queueTransactionsForConnection(
+        connection,
+        from,
+      )),
     );
   }
 
-  async queueTransactionsForConnectionName(name: string): Promise<void> {
+  async queueTransactionsForConnectionName(
+    name: string,
+    from?: Date,
+  ): Promise<void> {
     const connection = await ConnectionModel.find({ connection_name: name }).exec();
     if (connection.length > 0) {
-      await this.queueTransactionsForConnection(connection[0]);
+      await this.queueTransactionsForConnection(connection[0], from);
     }
   }
 
-  private async queueTransactionsForConnection(connection: Connection): Promise<void> {
+  private async queueTransactionsForConnection(
+    connection: Connection,
+    from?: Date,
+  ): Promise<void> {
     const accessToken = await this.getAccessToken(
       connection.connection_name,
       connection.access_token,
@@ -169,7 +179,7 @@ export class TruelayerService {
         connection.connection_name,
         accessToken.token,
         source,
-        connection.last_synced,
+        from ?? connection.last_synced,
       )),
     );
   }
@@ -178,13 +188,13 @@ export class TruelayerService {
     connectionName: string,
     accessToken: string,
     source: TransactionSource,
-    lastSynced: Date,
+    from: Date,
   ): Promise<void> {
     const now = new Date();
     const transactions = await this.getTransactions(
       accessToken,
       source,
-      lastSynced,
+      from,
       now,
     );
     await this.publishTransactions({ source, transactions });
@@ -376,6 +386,13 @@ export class TruelayerService {
       last_synced: new Date(),
     };
     await ConnectionModel.findOneAndUpdate(filter, connection, { upsert: true }).exec();
+    this.queueTransactionsForConnection(
+      {
+        ...connection,
+        connection_name: connectionName,
+      },
+      new Date(Date.now() - 30 * 24 * 3600 * 1000),
+    );
     return { ...filter, ...connection };
   }
 
@@ -456,6 +473,37 @@ export class TruelayerService {
       Accept: 'application/json',
       Authorization: `Bearer ${accessToken}`,
     };
+    const transactions = await Promise.all([
+      this.getUnclearedTransactions(source, query, requestHeaders),
+      this.getClearedTransactions(source, query, requestHeaders),
+    ]);
+    return transactions[0].concat(transactions[1]);
+  }
+
+  private async getUnclearedTransactions(
+    source: TransactionSource,
+    query: URLSearchParams,
+    requestHeaders: { Accept: string, Authorization: string },
+  ): Promise<Transaction[]> {
+    const response = await fetch(
+      `${config.truelayer.apiOrigin}/data/v1/${source.type}s/${source.account_id}/transactions/pending?${query.toString()}`,
+      {
+        method: 'GET',
+        headers: requestHeaders,
+      },
+    );
+    const transactions: Omit<Transaction, 'status'>[] = (await response.json()).results ?? [];
+    return transactions.map((transaction) => ({
+      ...transaction,
+      status: 'uncleared',
+    }));
+  }
+
+  private async getClearedTransactions(
+    source: TransactionSource,
+    query: URLSearchParams,
+    requestHeaders: { Accept: string, Authorization: string },
+  ): Promise<Transaction[]> {
     const response = await fetch(
       `${config.truelayer.apiOrigin}/data/v1/${source.type}s/${source.account_id}/transactions?${query.toString()}`,
       {
@@ -463,7 +511,11 @@ export class TruelayerService {
         headers: requestHeaders,
       },
     );
-    return (await response.json()).results;
+    const transactions: Omit<Transaction, 'status'>[] = (await response.json()).results ?? [];
+    return transactions.map((transaction) => ({
+      ...transaction,
+      status: 'cleared',
+    }));
   }
 
   private async publishTransactions(transactions: Transactions): Promise<void> {

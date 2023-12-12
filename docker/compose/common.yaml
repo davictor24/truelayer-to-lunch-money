@@ -9,6 +9,7 @@ services:
     image: truelayer-to-lunch-money/frontend:0.1.0
     ports:
       - 8000:80
+    restart: always
 
   truelayer-service:
     depends_on:
@@ -26,6 +27,7 @@ services:
       TRUELAYER_TOKEN_ENCRYPTION_SALT: $TRUELAYER_TOKEN_ENCRYPTION_SALT
     ports:
       - 8080:8080
+    restart: always
 
   lunch-money-service:
     depends_on:
@@ -38,6 +40,7 @@ services:
       LUNCH_MONEY_ACCESS_TOKEN: $LUNCH_MONEY_ACCESS_TOKEN
     ports:
       - 8081:8081
+    restart: always
 
   mongo:
     image: mongo:7.0
@@ -50,6 +53,7 @@ services:
       - ./data/mongo/db:/data/db
     ports:
       - 27017:27017
+    restart: always
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.3
@@ -61,6 +65,7 @@ services:
       - ./data/zookeeper/log:/var/lib/zookeeper/log
     ports:
       - 2181:2181
+    restart: always
 
   kafka:
     image: confluentinc/cp-kafka:7.4.3
@@ -77,3 +82,4 @@ services:
       - ./data/kafka/data:/var/lib/kafka/data
     ports:
       - 29092:29092
+    restart: always

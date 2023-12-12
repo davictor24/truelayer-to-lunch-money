@@ -25,6 +25,7 @@ interface Transaction {
   description: string;
   amount: number;
   currency: string;
+  status: 'cleared' | 'uncleared';
   transaction_type: string;
   transaction_category: string;
   transaction_classification: string[];
@@ -179,7 +180,7 @@ export class LunchMoneyService {
       payee: transaction.description,
       currency: transaction.currency.toLowerCase(),
       asset_id: assetID,
-      status: 'cleared',
+      status: transaction.status,
       external_id: transaction.normalised_provider_transaction_id,
     };
   }
