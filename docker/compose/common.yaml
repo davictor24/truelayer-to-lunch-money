@@ -6,7 +6,7 @@ services:
       - lunch-money-service
     build:
       context: ../../frontend
-    image: truelayer-to-lunch-money/frontend:0.1.0
+    image: lunchmoneysync/frontend:0.1.0
     ports:
       - 8000:80
     restart: always
@@ -17,7 +17,7 @@ services:
       - kafka
     build:
       context: ../../backend/truelayer-service
-    image: truelayer-to-lunch-money/truelayer-service:0.1.0
+    image: lunchmoneysync/truelayer-service:0.1.0
     environment:
       TRUELAYER_CLIENT_ID: $TRUELAYER_CLIENT_ID
       TRUELAYER_CLIENT_SECRET: $TRUELAYER_CLIENT_SECRET
@@ -35,7 +35,7 @@ services:
       - kafka
     build:
       context: ../../backend/lunch-money-service
-    image: truelayer-to-lunch-money/lunch-money-service:0.1.0
+    image: lunchmoneysync/lunch-money-service:0.1.0
     environment:
       LUNCH_MONEY_ACCESS_TOKEN: $LUNCH_MONEY_ACCESS_TOKEN
     ports:
@@ -49,7 +49,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: test
       MONGO_INITDB_DATABASE: connections
     volumes:
-      - ./data/mongo/users.js:/docker-entrypoint-initdb.d/users.js:ro
+      - ./init/mongo/users.js:/docker-entrypoint-initdb.d/users.js:ro
       - ./data/mongo/db:/data/db
     ports:
       - 27017:27017

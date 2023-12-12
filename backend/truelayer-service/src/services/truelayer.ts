@@ -113,10 +113,7 @@ export class TruelayerService {
       tokens.access_token.token,
     ) as Card[];
 
-    // 6. Queue transaction sources
-    await this.queueNewTransactionSources(name, metadata.provider, accounts, cards);
-
-    // 7. Save all the information into the database
+    // 6. Save all the information into the database
     const connection = await this.saveConnection(
       name,
       fullName,
@@ -125,6 +122,12 @@ export class TruelayerService {
       metadata,
       accounts,
       cards,
+    );
+
+    // 7. Sync transactions which happened within the past 30 days
+    this.queueTransactionsForConnection(
+      connection,
+      new Date(Date.now() - 30 * 24 * 3600 * 1000),
     );
 
     return connection;
@@ -307,25 +310,6 @@ export class TruelayerService {
     return balance.current;
   }
 
-  private async queueNewTransactionSources(
-    name: string,
-    provider: Provider,
-    accounts: Account[],
-    cards: Card[],
-  ): Promise<void> {
-    const connectionTransactions: Transactions[] = [];
-    const sources = this.mergeTransactionSources(name, provider, accounts, cards);
-    sources.forEach((source) => {
-      connectionTransactions.push({
-        source,
-        transactions: [],
-      });
-    });
-    await Promise.all(
-      connectionTransactions.map((transactions) => this.publishTransactions(transactions)),
-    );
-  }
-
   private mergeTransactionSources(
     name: string,
     provider: Provider,
@@ -386,13 +370,6 @@ export class TruelayerService {
       last_synced: new Date(),
     };
     await ConnectionModel.findOneAndUpdate(filter, connection, { upsert: true }).exec();
-    this.queueTransactionsForConnection(
-      {
-        ...connection,
-        connection_name: connectionName,
-      },
-      new Date(Date.now() - 30 * 24 * 3600 * 1000),
-    );
     return { ...filter, ...connection };
   }
 

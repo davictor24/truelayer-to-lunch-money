@@ -1,4 +1,2 @@
-data/kafka
-data/mongo/db
-data/zookeeper
+data
 env.sh

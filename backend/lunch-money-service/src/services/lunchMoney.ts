@@ -111,6 +111,7 @@ export class LunchMoneyService {
         transactions.transactions,
         assetID,
         asset.type_name === 'cash',
+        transactions.source.balance !== undefined,
       );
       await this.insertTransactions(transformedTransactions);
     }
@@ -156,6 +157,7 @@ export class LunchMoneyService {
     transactions: Transaction[],
     assetID: LunchMoneyAssetID,
     isCashAsset: boolean,
+    skipBalanceUpdate: boolean,
   ): LunchMoneyTransactions {
     return {
       transactions: transactions.map((transaction) => this.transformTransaction(
@@ -166,7 +168,7 @@ export class LunchMoneyService {
       skip_duplicates: true,
       check_for_recurring: true,
       debit_as_negative: isCashAsset,
-      skip_balance_update: false,
+      skip_balance_update: skipBalanceUpdate,
     };
   }
 
