@@ -15,6 +15,12 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint:check
+      - # Add support for more platforms with QEMU
+        # Needed to run the container on a Raspberry Pi
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64,arm64
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Cache Docker layers
@@ -35,6 +41,7 @@ jobs:
           context: frontend
           push: ${{ github.ref == 'refs/heads/master' }}
           tags: lunchmoneysync/frontend
+          platforms: linux/amd64,linux/arm64
           cache-from: type=local,src=/tmp/.buildx-cache/frontend
           cache-to: type=local,dest=/tmp/.buildx-cache-new/frontend
       - name: Move cache
@@ -58,6 +65,12 @@ jobs:
         run: npm run lint:check
       - name: Test
         run: npm test
+      - # Add support for more platforms with QEMU
+        # Needed to run the container on a Raspberry Pi
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64,arm64
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Cache Docker layers
@@ -78,6 +91,7 @@ jobs:
           context: backend/truelayer-service
           push: ${{ github.ref == 'refs/heads/master' }}
           tags: lunchmoneysync/truelayer-service
+          platforms: linux/amd64,linux/arm64
           cache-from: type=local,src=/tmp/.buildx-cache/truelayer-service
           cache-to: type=local,dest=/tmp/.buildx-cache-new/truelayer-service
       - name: Move cache
@@ -101,6 +115,12 @@ jobs:
         run: npm run lint:check
       - name: Test
         run: npm test
+      - # Add support for more platforms with QEMU
+        # Needed to run the container on a Raspberry Pi
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64,arm64
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Cache Docker layers
@@ -121,6 +141,7 @@ jobs:
           context: backend/lunch-money-service
           push: ${{ github.ref == 'refs/heads/master' }}
           tags: lunchmoneysync/lunch-money-service
+          platforms: linux/amd64,linux/arm64
           cache-from: type=local,src=/tmp/.buildx-cache/lunch-money-service
           cache-to: type=local,dest=/tmp/.buildx-cache-new/lunch-money-service
       - name: Move cache
