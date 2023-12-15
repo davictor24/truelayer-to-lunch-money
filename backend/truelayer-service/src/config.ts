@@ -16,8 +16,8 @@ export default {
   },
   mongo: {
     url: process.env.MONGO_URL ?? 'mongodb://mongo:27017/connections',
-    username: process.env.MONGO_USERNAME ?? 'test',
-    password: process.env.MONGO_PASSWORD ?? 'test',
+    username: process.env.MONGO_USERNAME ?? 'user',
+    password: process.env.MONGO_PASSWORD ?? 'pass',
   },
   kafka: {
     brokers: process.env.KAFKA_BROKERS ? process.env.KAFKA_BROKERS.split(',') : ['kafka:9092'],

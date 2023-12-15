@@ -45,9 +45,9 @@ services:
   mongo:
     image: mongo:7.0
     environment:
-      MONGO_INITDB_ROOT_USERNAME: test
-      MONGO_INITDB_ROOT_PASSWORD: test
-      MONGO_INITDB_DATABASE: connections
+      MONGO_INITDB_ROOT_USERNAME: admin-user
+      MONGO_INITDB_ROOT_PASSWORD: admin-pass
+      MONGO_INITDB_DATABASE: admin
     volumes:
       - ./init/mongo/users.js:/docker-entrypoint-initdb.d/users.js:ro
       - ./data/mongo/db:/data/db

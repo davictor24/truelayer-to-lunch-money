@@ -13,7 +13,7 @@ interface ConnectionResponse {
 
 export async function auth(req: Request, res: Response) {
   const { name, url } = req.query;
-  if (typeof name !== 'string') {
+  if (typeof name !== 'string' || !name) {
     res.status(400).send('Invalid connection name');
   } else if (typeof url !== 'string') {
     res.status(400).send('Invalid URL parameter');

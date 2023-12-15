@@ -122,7 +122,12 @@ export default function App() {
                 />
               </ModalBody>
               <ModalFooter>
-                <Button onClick={() => connect(newConnectionName)}>Next</Button>
+                <Button
+                  onClick={() => connect(newConnectionName)}
+                  isDisabled={newConnectionName.length === 0}
+                >
+                  Next
+                </Button>
               </ModalFooter>
             </ModalContent>
           </Modal>
