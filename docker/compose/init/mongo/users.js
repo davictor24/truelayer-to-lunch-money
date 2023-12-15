@@ -1,5 +1,5 @@
-db.auth(process.env.MONGO_INITDB_ROOT_USERNAME, process.env.MONGO_INITDB_ROOT_PASSWORD);
-db = db.getSiblingDB('connections');
+db.auth("admin-user", "admin-pass");
+db = db.getSiblingDB("connections");
 db.createUser(
   {
     user: "user",
