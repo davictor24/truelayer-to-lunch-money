@@ -23,11 +23,11 @@ mongoose.connect(config.mongo.url, {
 });
 
 app.get('/', health);
-app.get('/auth', auth);
-app.get('/redirect', redirect);
-app.get('/connections', getConnections);
-app.delete('/connections/:name', deleteConnection);
-app.post('/connections/sync/:name', queueTransactions);
+app.get('/truelayer/auth', auth);
+app.get('/truelayer/redirect', redirect);
+app.get('/truelayer/connections', getConnections);
+app.delete('/truelayer/connections/:name', deleteConnection);
+app.post('/truelayer/connections/sync/:name', queueTransactions);
 
 cron.schedule('*/15 * * * *', () => {
   truelayerService.queueTransactions();
