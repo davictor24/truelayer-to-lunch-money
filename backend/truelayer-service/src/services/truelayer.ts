@@ -67,7 +67,7 @@ export class TruelayerService {
     const query = new URLSearchParams({
       response_type: 'code',
       client_id: config.truelayer.clientId,
-      // TODO: Integrate direct debits and standing orders too
+      // TODO: Get data on direct debits and standing orders too, since we have permission
       scope: 'info accounts balance cards transactions direct_debits standing_orders offline_access',
       redirect_uri: config.truelayer.redirectURI,
       providers: 'uk-ob-all uk-oauth-all',
@@ -153,7 +153,14 @@ export class TruelayerService {
   ): Promise<void> {
     const connection = await ConnectionModel.find({ connection_name: name }).exec();
     if (connection.length > 0) {
-      await this.queueTransactionsForConnection(connection[0], from);
+      try {
+        await this.queueTransactionsForConnection(connection[0], from);
+      } catch (err) {
+        console.log(`Something went wrong when queueing transactions for ${name}`);
+        console.log(err.message);
+        console.log('Stack trace -');
+        console.log(err.stack);
+      }
     }
   }
 
@@ -193,6 +200,7 @@ export class TruelayerService {
     source: TransactionSource,
     from: Date,
   ): Promise<void> {
+    console.log(`Preparing to queue transactions for ${connectionName} / ${source.name} since ${from}`);
     const now = new Date();
     const transactions = await this.getTransactions(
       accessToken,

@@ -29,10 +29,16 @@ app.get('/truelayer/connections', getConnections);
 app.delete('/truelayer/connections/:name', deleteConnection);
 app.post('/truelayer/connections/sync/:name', queueTransactions);
 
-cron.schedule('*/15 * * * *', () => {
+// Runs every 15 minutes, apart from 12am every day
+cron.schedule('*/15 1-23 * * *', () => {
+  truelayerService.queueTransactions();
+});
+cron.schedule('15-45/15 0 * * *', () => {
   truelayerService.queueTransactions();
 });
 
+// Runs 12am every day to get transactions that might have cleared
+// (or transactions that might have been missed for some reason)
 cron.schedule('0 0 * * *', () => {
   truelayerService.queueTransactions(new Date(Date.now() - 30 * 24 * 3600 * 1000));
 });
