@@ -47,7 +47,13 @@ interface Transaction {
   merchant_name?: string;
 }
 
+function dateDaysAgo(date: Date, daysAgo: number): Date {
+  return new Date(date.getTime() - daysAgo * 24 * 3600 * 1000);
+}
+
 export class TruelayerService {
+  private static readonly WAY_BACK_DAYS = 30;
+
   private producer: Producer;
 
   constructor() {
@@ -103,13 +109,13 @@ export class TruelayerService {
 
     // 4. Get accounts
     const accounts = await this.getTransactionSources(
-      'accounts',
+      'account',
       tokens.access_token.token,
     ) as Account[];
 
     // 5. Get cards
     const cards = await this.getTransactionSources(
-      'cards',
+      'card',
       tokens.access_token.token,
     ) as Card[];
 
@@ -124,11 +130,8 @@ export class TruelayerService {
       cards,
     );
 
-    // 7. Sync transactions which happened within the past 30 days
-    this.queueTransactionsForConnection(
-      connection,
-      new Date(Date.now() - 30 * 24 * 3600 * 1000),
-    );
+    // 7. Sync transactions which happened within the past WAY_BACK_DAYS days
+    this.queueTransactionsForConnectionWayBack(connection);
 
     return connection;
   }
@@ -137,29 +140,54 @@ export class TruelayerService {
     await ConnectionModel.deleteOne({ connection_name: name }).exec();
   }
 
-  async queueTransactions(from?: Date): Promise<void> {
+  async queueTransactions(
+    since?: Date,
+    includeCurrentBalance?: boolean,
+  ): Promise<void> {
     const connections = await this.getConnections();
     await Promise.all(
       connections.map((connection) => this.queueTransactionsForConnection(
         connection,
-        from,
+        since,
+        includeCurrentBalance,
       )),
+    );
+  }
+
+  async queueTransactionsWayBack(): Promise<void> {
+    await this.queueTransactions(
+      dateDaysAgo(new Date(), TruelayerService.WAY_BACK_DAYS),
+      true,
     );
   }
 
   async queueTransactionsForConnectionName(
     name: string,
-    from?: Date,
+    since?: Date,
+    includeCurrentBalance?: boolean,
   ): Promise<void> {
     const connection = await ConnectionModel.find({ connection_name: name }).exec();
     if (connection.length > 0) {
-      await this.queueTransactionsForConnection(connection[0], from);
+      await this.queueTransactionsForConnection(
+        connection[0],
+        since,
+        includeCurrentBalance,
+      );
     }
+  }
+
+  async queueTransactionsForConnectionNameWayBack(name: string): Promise<void> {
+    await this.queueTransactionsForConnectionName(
+      name,
+      dateDaysAgo(new Date(), TruelayerService.WAY_BACK_DAYS),
+      true,
+    );
   }
 
   private async queueTransactionsForConnection(
     connection: Connection,
-    from?: Date,
+    since?: Date,
+    includeCurrentBalance?: boolean,
   ): Promise<void> {
     try {
       const accessToken = await this.getAccessToken(
@@ -183,7 +211,8 @@ export class TruelayerService {
           connection.connection_name,
           accessToken.token,
           source,
-          from ?? connection.last_synced,
+          since ?? connection.last_synced,
+          includeCurrentBalance ?? false,
         )),
       );
     } catch (err) {
@@ -193,21 +222,35 @@ export class TruelayerService {
     }
   }
 
+  async queueTransactionsForConnectionWayBack(connection: Connection): Promise<void> {
+    await this.queueTransactionsForConnection(
+      connection,
+      dateDaysAgo(new Date(), TruelayerService.WAY_BACK_DAYS),
+      true,
+    );
+  }
+
   private async queueTransactionsForSource(
     connectionName: string,
     accessToken: string,
     source: TransactionSource,
-    from: Date,
+    since: Date,
+    includeCurrentBalance: boolean,
   ): Promise<void> {
-    console.log(`Queueing transactions for ${connectionName} / ${source.name} since ${from}`);
+    console.log(`Queueing transactions for ${connectionName} / ${source.name} since ${since}`);
     const now = new Date();
     const transactions = await this.getTransactions(
       accessToken,
       source,
-      from,
+      since,
       now,
     );
-    await this.publishTransactions({ source, transactions });
+    const updatedSource = source;
+    if (includeCurrentBalance) {
+      const balance = await this.getBalance(source.account_id, source.type, accessToken);
+      updatedSource.balance = balance;
+    }
+    await this.publishTransactions({ source: updatedSource, transactions });
     await ConnectionModel.findOneAndUpdate(
       { connection_name: connectionName },
       { last_synced: now },
@@ -275,14 +318,14 @@ export class TruelayerService {
   }
 
   private async getTransactionSources(
-    sourceType: 'accounts' | 'cards',
+    sourceType: 'account' | 'card',
     accessToken: string,
   ): Promise<Account[] | Card[]> {
     const requestHeaders = {
       Accept: 'application/json',
       Authorization: `Bearer ${accessToken}`,
     };
-    const response = await fetch(`${config.truelayer.apiOrigin}/data/v1/${sourceType}`, {
+    const response = await fetch(`${config.truelayer.apiOrigin}/data/v1/${sourceType}s`, {
       method: 'GET',
       headers: requestHeaders,
     });
@@ -290,26 +333,19 @@ export class TruelayerService {
       return [];
     }
     const sources: Account[] | Card[] = (await response.json()).results;
-
-    const balances = await Promise.all(
-      sources.map((source) => this.getBalance(source.account_id, sourceType, accessToken)),
-    );
-    for (let i = 0; i < sources.length; i += 1) {
-      sources[i].balance = balances[i];
-    }
     return sources;
   }
 
   private async getBalance(
     accountID: string,
-    sourceType: 'accounts' | 'cards',
+    sourceType: 'account' | 'card',
     accessToken: string,
   ): Promise<number> {
     const requestHeaders = {
       Accept: 'application/json',
       Authorization: `Bearer ${accessToken}`,
     };
-    const response = await fetch(`${config.truelayer.apiOrigin}/data/v1/${sourceType}/${accountID}/balance`, {
+    const response = await fetch(`${config.truelayer.apiOrigin}/data/v1/${sourceType}s/${accountID}/balance`, {
       method: 'GET',
       headers: requestHeaders,
     });

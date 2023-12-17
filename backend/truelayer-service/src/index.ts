@@ -9,7 +9,7 @@ import {
   redirect,
   getConnections,
   deleteConnection,
-  queueTransactions,
+  queueTransactionsForConnectionNameWayBack,
 } from './controllers/truelayer';
 import truelayerService from './services/truelayer';
 
@@ -27,7 +27,7 @@ app.get('/truelayer/auth', auth);
 app.get('/truelayer/redirect', redirect);
 app.get('/truelayer/connections', getConnections);
 app.delete('/truelayer/connections/:name', deleteConnection);
-app.post('/truelayer/connections/sync/:name', queueTransactions);
+app.post('/truelayer/connections/sync/:name', queueTransactionsForConnectionNameWayBack);
 
 // Runs every 15 minutes, apart from 12am every day
 cron.schedule('*/15 1-23 * * *', () => {
@@ -40,7 +40,7 @@ cron.schedule('15-45/15 0 * * *', () => {
 // Runs 12am every day to get transactions that might have cleared
 // (or transactions that might have been missed for some reason)
 cron.schedule('0 0 * * *', () => {
-  truelayerService.queueTransactions(new Date(Date.now() - 30 * 24 * 3600 * 1000));
+  truelayerService.queueTransactionsWayBack();
 });
 
 app.listen(config.port, () => {

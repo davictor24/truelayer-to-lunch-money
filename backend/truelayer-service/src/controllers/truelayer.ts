@@ -62,8 +62,8 @@ export async function deleteConnection(req: Request, res: Response) {
   res.status(204).send();
 }
 
-export async function queueTransactions(req: Request, res: Response) {
+export async function queueTransactionsForConnectionNameWayBack(req: Request, res: Response) {
   const { name } = req.params;
-  await truelayerService.queueTransactionsForConnectionName(name);
+  await truelayerService.queueTransactionsForConnectionNameWayBack(name);
   res.status(204).send();
 }
