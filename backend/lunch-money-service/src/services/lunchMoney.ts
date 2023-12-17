@@ -97,7 +97,7 @@ export class LunchMoneyService {
       assetID = this.cachedAssetIDs.get(assetKey);
     } else {
       // 2. Else, update the cache
-      this.updateCachedAssets();
+      await this.updateCachedAssets();
       if (!this.cachedAssetIDs.has(assetKey)) {
         // 3. If we still don't have the asset, create it
         assetID = await this.createAsset(asset);
@@ -228,7 +228,7 @@ export class LunchMoneyService {
   }
 
   private getAssetKey(asset: LunchMoneyAsset): LunchMoneyAssetKey {
-    return `${asset.institution_name}|${asset.name}|${asset.type_name}|${asset.subtype_name}`;
+    return `${asset.institution_name}|${asset.name}|${asset.type_name}|${asset.subtype_name}|${asset.currency}`;
   }
 
   private async updateCachedAssets(): Promise<void> {

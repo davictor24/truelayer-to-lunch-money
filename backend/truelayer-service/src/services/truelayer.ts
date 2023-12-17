@@ -153,14 +153,7 @@ export class TruelayerService {
   ): Promise<void> {
     const connection = await ConnectionModel.find({ connection_name: name }).exec();
     if (connection.length > 0) {
-      try {
-        await this.queueTransactionsForConnection(connection[0], from);
-      } catch (err) {
-        console.log(`Something went wrong when queueing transactions for ${name}`);
-        console.log(err.message);
-        console.log('Stack trace -');
-        console.log(err.stack);
-      }
+      await this.queueTransactionsForConnection(connection[0], from);
     }
   }
 
@@ -168,30 +161,36 @@ export class TruelayerService {
     connection: Connection,
     from?: Date,
   ): Promise<void> {
-    const accessToken = await this.getAccessToken(
-      connection.connection_name,
-      connection.access_token,
-      connection.refresh_token,
-    );
-    if (!accessToken) {
-      console.log('Cannot get access token to queue transactions');
-      return;
-    }
-
-    const sources = this.mergeTransactionSources(
-      connection.connection_name,
-      connection.metadata.provider,
-      connection.accounts,
-      connection.cards,
-    );
-    await Promise.all(
-      sources.map((source) => this.queueTransactionsForSource(
+    try {
+      const accessToken = await this.getAccessToken(
         connection.connection_name,
-        accessToken.token,
-        source,
-        from ?? connection.last_synced,
-      )),
-    );
+        connection.access_token,
+        connection.refresh_token,
+      );
+      if (!accessToken) {
+        console.log('Cannot get access token to queue transactions');
+        return;
+      }
+
+      const sources = this.mergeTransactionSources(
+        connection.connection_name,
+        connection.metadata.provider,
+        connection.accounts,
+        connection.cards,
+      );
+      await Promise.all(
+        sources.map((source) => this.queueTransactionsForSource(
+          connection.connection_name,
+          accessToken.token,
+          source,
+          from ?? connection.last_synced,
+        )),
+      );
+    } catch (err) {
+      console.log(
+        `Something went wrong when queueing transactions for ${connection.connection_name} - ${err.message}\n${err.stack}`,
+      );
+    }
   }
 
   private async queueTransactionsForSource(
@@ -200,7 +199,7 @@ export class TruelayerService {
     source: TransactionSource,
     from: Date,
   ): Promise<void> {
-    console.log(`Preparing to queue transactions for ${connectionName} / ${source.name} since ${from}`);
+    console.log(`Queueing transactions for ${connectionName} / ${source.name} since ${from}`);
     const now = new Date();
     const transactions = await this.getTransactions(
       accessToken,
