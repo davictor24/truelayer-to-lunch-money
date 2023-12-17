@@ -38,7 +38,7 @@ export default function App() {
 
     if (showToast) {
       toast.promise(promise(), {
-        success: { title: 'Connections fetched successfully', description: 'Looks great' },
+        success: { title: 'Connections fetched successfully', description: 'Looks great', duration: 2000 },
         error: (err) => ({ title: 'An error occurred', description: err.message }),
         loading: { title: 'Fetching connections...', description: 'Please wait' },
       });
@@ -59,7 +59,7 @@ export default function App() {
   const disconnect = (name: string) => {
     const promise = truelayerService.disconnect(name);
     toast.promise(promise, {
-      success: { title: 'Disconnected successfully', description: 'Looks great' },
+      success: { title: 'Disconnected successfully', description: 'Looks great', duration: 2000 },
       error: (err) => ({ title: 'An error occurred', description: err.message }),
       loading: { title: 'Disconnecting...', description: 'Please wait' },
     });

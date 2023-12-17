@@ -58,7 +58,7 @@ interface LunchMoneyTransaction {
   payee: string;
   currency: string;
   asset_id: number;
-  status: string;
+  status: 'cleared' | 'uncleared';
   external_id?: string;
 }
 
@@ -96,24 +96,35 @@ export class LunchMoneyService {
       // 1. If we have the asset cached, use it
       assetID = this.cachedAssetIDs.get(assetKey);
     } else {
-      // 2. Else, update the cache
+      // 2. Else, update the cache and get the asset if it now exists
       await this.updateCachedAssets();
-      if (!this.cachedAssetIDs.has(assetKey)) {
-        // 3. If we still don't have the asset, create it
-        assetID = await this.createAsset(asset);
-        this.cachedAssetIDs.set(assetKey, assetID);
+      if (this.cachedAssetIDs.has(assetKey)) {
+        assetID = this.cachedAssetIDs.get(assetKey);
       }
     }
 
-    // 4. Process the transactions, if any exists
+    if (!assetID) {
+      // 3. If we still don't have the asset, create it and update the cache
+      assetID = await this.createAsset(asset);
+      this.cachedAssetIDs.set(assetKey, assetID);
+    } else if (transactions.source.balance) {
+      // 4. If we have the asset, update the balance if a new one was specified
+      const balance = String(transactions.source.balance);
+      await this.updateAssetBalance(assetID, balance);
+    }
+
+    // 5. Process the transactions, if any exists
     if (transactions.transactions.length > 0) {
-      const transformedTransactions = this.transformTransactions(
-        transactions.transactions,
+      const transformedTransactionsArr = this.transformTransactions(
+        transactions,
         assetID,
         asset.type_name === 'cash',
-        transactions.source.balance !== undefined,
       );
-      await this.insertTransactions(transformedTransactions);
+      await Promise.all(
+        transformedTransactionsArr.map(
+          (transformedTransactions) => this.insertTransactions(transformedTransactions),
+        ),
+      );
     }
   }
 
@@ -154,22 +165,45 @@ export class LunchMoneyService {
   }
 
   private transformTransactions(
-    transactions: Transaction[],
+    transactions: Transactions,
     assetID: LunchMoneyAssetID,
     isCashAsset: boolean,
-    skipBalanceUpdate: boolean,
-  ): LunchMoneyTransactions {
-    return {
-      transactions: transactions.map((transaction) => this.transformTransaction(
-        transaction,
-        assetID,
-      )),
+  ): LunchMoneyTransactions[] {
+    const clearedTransactions: LunchMoneyTransaction[] = [];
+    const unclearedTransactions: LunchMoneyTransaction[] = [];
+    transactions.transactions.forEach((transaction) => {
+      const transformedTransaction = this.transformTransaction(transaction, assetID);
+      if (transformedTransaction.status === 'cleared') {
+        clearedTransactions.push(transformedTransaction);
+      } else {
+        unclearedTransactions.push(transformedTransaction);
+      }
+    });
+    console.log(
+      `Transformed ${clearedTransactions.length} cleared transactions `
+      + `and ${unclearedTransactions.length} uncleared transactions `
+      + `for asset ID ${assetID}`,
+    );
+
+    return [{
+      transactions: clearedTransactions,
       apply_rules: true,
       skip_duplicates: true,
       check_for_recurring: true,
       debit_as_negative: isCashAsset,
-      skip_balance_update: skipBalanceUpdate,
-    };
+      // If there was a new balance specified, the asset has already been,
+      // or will be updated in a different request
+      skip_balance_update: transactions.source.balance !== undefined,
+    },
+    {
+      transactions: unclearedTransactions,
+      apply_rules: true,
+      skip_duplicates: true,
+      check_for_recurring: true,
+      debit_as_negative: isCashAsset,
+      // Don't update balance for uncleared transactions
+      skip_balance_update: true,
+    }];
   }
 
   private transformTransaction(
@@ -213,6 +247,18 @@ export class LunchMoneyService {
       body: JSON.stringify(requestBody),
     });
     return (await response.json()).id;
+  }
+
+  private async updateAssetBalance(assetID: LunchMoneyAssetID, balance: string): Promise<void> {
+    const requestHeaders = {
+      Authorization: `Bearer ${config.lunchMoney.accessToken}`,
+      'Content-Type': 'application/json',
+    };
+    await fetch(`${config.lunchMoney.apiOrigin}/v1/assets/${assetID}`, {
+      method: 'PUT',
+      headers: requestHeaders,
+      body: JSON.stringify({ balance }),
+    });
   }
 
   private async insertTransactions(transactions: LunchMoneyTransactions): Promise<void> {
