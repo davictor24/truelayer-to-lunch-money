@@ -350,7 +350,15 @@ export class TruelayerService {
       headers: requestHeaders,
     });
     const balance = (await response.json()).results[0];
-    return balance.current;
+    let { current } = balance;
+
+    // Only noticed this issue with Monzo Flex since it uses a different sign convention.
+    // Might work too for others (if any) using a negative sign convention for credit cards.
+    if (sourceType === 'card' && balance.available && balance.available < 0) {
+      current *= -1;
+    }
+
+    return current;
   }
 
   private mergeTransactionSources(
