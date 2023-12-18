@@ -210,7 +210,7 @@ export class LunchMoneyService {
       },
       pending: {
         transactions: pendingTransactions,
-        apply_rules: true,
+        apply_rules: false,
         skip_duplicates: true,
         check_for_recurring: true,
         debit_as_negative: isCashAsset,
