@@ -31,6 +31,11 @@ export default function App() {
   const [newConnectionName, setNewConnectionName] = useState<string>('');
   const toast = useToast();
 
+  const handleOpen = () => {
+    setNewConnectionName('');
+    onOpen();
+  };
+
   const getConnections = (showToast = false) => {
     const promise = async () => {
       setConnections(await truelayerService.getConnections());
@@ -88,7 +93,7 @@ export default function App() {
           <Text align="center" fontSize="5xl">
             Connections
             &nbsp;
-            <IconButton aria-label="Add connection" size="lg" onClick={onOpen} icon={<FaPlus />} />
+            <IconButton aria-label="Add connection" size="lg" onClick={handleOpen} icon={<FaPlus />} />
           </Text>
           {connections.length > 0
             ? (
