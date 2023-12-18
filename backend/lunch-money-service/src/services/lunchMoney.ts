@@ -3,6 +3,7 @@ import config from '../config';
 
 type LunchMoneyAssetKey = string;
 type LunchMoneyAssetID = number;
+type LunchMoneyCategoryID = number;
 
 interface Transactions {
   source: TransactionSource;
@@ -25,7 +26,7 @@ interface Transaction {
   description: string;
   amount: number;
   currency: string;
-  status: 'cleared' | 'uncleared';
+  status: 'cleared' | 'pending';
   transaction_type: string;
   transaction_category: string;
   transaction_classification: string[];
@@ -43,6 +44,11 @@ interface LunchMoneyAsset {
   institution_name: string;
 }
 
+interface LunchMoneyTransactionsSet {
+  cleared: LunchMoneyTransactions;
+  pending: LunchMoneyTransactions;
+}
+
 interface LunchMoneyTransactions {
   transactions: LunchMoneyTransaction[];
   apply_rules: boolean;
@@ -55,6 +61,7 @@ interface LunchMoneyTransactions {
 interface LunchMoneyTransaction {
   date: string;
   amount: number | string;
+  category_id?: LunchMoneyCategoryID;
   payee: string;
   currency: string;
   asset_id: number;
@@ -63,10 +70,14 @@ interface LunchMoneyTransaction {
 }
 
 export class LunchMoneyService {
+  private static readonly PENDING_CATEGORY_NAME = 'Pending';
+
   private consumer: Consumer;
 
   // TODO: Consider using Redis
   private cachedAssetIDs = new Map<LunchMoneyAssetKey, LunchMoneyAssetID>();
+
+  private cachedPendingCategoryID: LunchMoneyCategoryID;
 
   constructor() {
     const kafka = new Kafka({
@@ -76,7 +87,15 @@ export class LunchMoneyService {
     this.consumer = kafka.consumer({ groupId: 'main' });
   }
 
-  async startConsumer(): Promise<void> {
+  async start(): Promise<void> {
+    await Promise.all([
+      this.cachePendingCategoryID(),
+      this.cacheAssets(),
+    ]);
+    this.startConsumer();
+  }
+
+  private async startConsumer(): Promise<void> {
     await this.consumer.connect();
     await this.consumer.subscribe({ topic: config.kafka.topics.transactions });
     await this.consumer.run({
@@ -95,36 +114,29 @@ export class LunchMoneyService {
     if (this.cachedAssetIDs.has(assetKey)) {
       // 1. If we have the asset cached, use it
       assetID = this.cachedAssetIDs.get(assetKey);
-    } else {
-      // 2. Else, update the cache and get the asset if it now exists
-      await this.updateCachedAssets();
-      if (this.cachedAssetIDs.has(assetKey)) {
-        assetID = this.cachedAssetIDs.get(assetKey);
+      if (asset.balance) {
+        // 2. Afterwards, update the balance if a new one was specified
+        await this.updateAssetBalance(assetID, asset.balance);
       }
-    }
-
-    if (!assetID) {
-      // 3. If we still don't have the asset, create it and update the cache
+    } else {
+      // 3. If we don't have the asset, create it and update the cache
+      // No need to update the balance afterwards, if the asset has a balance,
+      // it would have been set on creation.
       assetID = await this.createAsset(asset);
       this.cachedAssetIDs.set(assetKey, assetID);
-    } else if (transactions.source.balance) {
-      // 4. If we have the asset, update the balance if a new one was specified
-      const balance = String(transactions.source.balance);
-      await this.updateAssetBalance(assetID, balance);
     }
 
-    // 5. Process the transactions, if any exists
+    // 4. Process the transactions, if any exists
     if (transactions.transactions.length > 0) {
-      const transformedTransactionsArr = this.transformTransactions(
+      const transformedTransactionsSet = this.transformTransactions(
         transactions,
         assetID,
         asset.type_name === 'cash',
       );
-      await Promise.all(
-        transformedTransactionsArr.map(
-          (transformedTransactions) => this.insertTransactions(transformedTransactions),
-        ),
-      );
+      await Promise.all([
+        this.insertTransactions(transformedTransactionsSet.cleared),
+        this.insertTransactions(transformedTransactionsSet.pending),
+      ]);
     }
   }
 
@@ -168,57 +180,104 @@ export class LunchMoneyService {
     transactions: Transactions,
     assetID: LunchMoneyAssetID,
     isCashAsset: boolean,
-  ): LunchMoneyTransactions[] {
+  ): LunchMoneyTransactionsSet {
     const clearedTransactions: LunchMoneyTransaction[] = [];
-    const unclearedTransactions: LunchMoneyTransaction[] = [];
+    const pendingTransactions: LunchMoneyTransaction[] = [];
     transactions.transactions.forEach((transaction) => {
       const transformedTransaction = this.transformTransaction(transaction, assetID);
-      if (transformedTransaction.status === 'cleared') {
+      if (transaction.status === 'cleared') {
         clearedTransactions.push(transformedTransaction);
       } else {
-        unclearedTransactions.push(transformedTransaction);
+        pendingTransactions.push(transformedTransaction);
       }
     });
     console.log(
       `Transformed ${clearedTransactions.length} cleared transactions `
-      + `and ${unclearedTransactions.length} uncleared transactions `
+      + `and ${pendingTransactions.length} pending transactions `
       + `for asset ID ${assetID}`,
     );
 
-    return [{
-      transactions: clearedTransactions,
-      apply_rules: true,
-      skip_duplicates: true,
-      check_for_recurring: true,
-      debit_as_negative: isCashAsset,
-      // If there was a new balance specified, the asset has already been,
-      // or will be updated in a different request
-      skip_balance_update: transactions.source.balance !== undefined,
-    },
-    {
-      transactions: unclearedTransactions,
-      apply_rules: true,
-      skip_duplicates: true,
-      check_for_recurring: true,
-      debit_as_negative: isCashAsset,
-      // Don't update balance for uncleared transactions
-      skip_balance_update: true,
-    }];
+    return {
+      cleared: {
+        transactions: clearedTransactions,
+        apply_rules: true,
+        skip_duplicates: true,
+        check_for_recurring: true,
+        debit_as_negative: isCashAsset,
+        // If there was a new balance specified, the asset has already been,
+        // or will be updated in a different request
+        skip_balance_update: transactions.source.balance !== undefined,
+      },
+      pending: {
+        transactions: pendingTransactions,
+        apply_rules: true,
+        skip_duplicates: true,
+        check_for_recurring: true,
+        debit_as_negative: isCashAsset,
+        // Don't update balance for pending transactions
+        skip_balance_update: true,
+      },
+    };
   }
 
   private transformTransaction(
     transaction: Transaction,
     assetID: LunchMoneyAssetID,
   ): LunchMoneyTransaction {
+    let categoryID;
+    let payee = transaction.description;
+    let externalID = transaction.normalised_provider_transaction_id;
+    if (transaction.status === 'pending') {
+      categoryID = this.cachedPendingCategoryID;
+      payee = `${transaction.description} - Pending`;
+      if (externalID) {
+        externalID = `${externalID}-pending`;
+      }
+    }
+
     return {
       date: transaction.timestamp,
       amount: transaction.amount,
-      payee: transaction.description,
+      category_id: categoryID,
+      payee,
       currency: transaction.currency.toLowerCase(),
       asset_id: assetID,
-      status: transaction.status,
-      external_id: transaction.normalised_provider_transaction_id,
+      status: 'cleared',
+      external_id: externalID,
     };
+  }
+
+  private async getPendingCategoryID(): Promise<LunchMoneyCategoryID> {
+    const getCategoriesRequestHeaders = {
+      Authorization: `Bearer ${config.lunchMoney.accessToken}`,
+    };
+    const getCategoriesResponse = await fetch(`${config.lunchMoney.apiOrigin}/v1/categories`, {
+      method: 'GET',
+      headers: getCategoriesRequestHeaders,
+    });
+    const { categories } = await getCategoriesResponse.json();
+    for (let i = 0; i < categories.length; i += 1) {
+      if (categories[i].name === LunchMoneyService.PENDING_CATEGORY_NAME) {
+        return categories[i].id;
+      }
+    }
+
+    // Pending category does not exist, create it
+    const createCategoriesRequestHeaders = {
+      Authorization: `Bearer ${config.lunchMoney.accessToken}`,
+      'Content-Type': 'application/json',
+    };
+    const createCategoriesRequestBody = {
+      name: LunchMoneyService.PENDING_CATEGORY_NAME,
+      exclude_from_budget: true,
+      exclude_from_totals: true,
+    };
+    const createCategoriesResponse = await fetch(`${config.lunchMoney.apiOrigin}/v1/categories`, {
+      method: 'POST',
+      headers: createCategoriesRequestHeaders,
+      body: JSON.stringify(createCategoriesRequestBody),
+    });
+    return (await createCategoriesResponse.json()).category_id;
   }
 
   private async getAssets(): Promise<(LunchMoneyAsset & { id: LunchMoneyAssetID })[]> {
@@ -262,6 +321,9 @@ export class LunchMoneyService {
   }
 
   private async insertTransactions(transactions: LunchMoneyTransactions): Promise<void> {
+    if (transactions.transactions.length === 0) {
+      return;
+    }
     const requestHeaders = {
       Authorization: `Bearer ${config.lunchMoney.accessToken}`,
       'Content-Type': 'application/json',
@@ -277,7 +339,11 @@ export class LunchMoneyService {
     return `${asset.institution_name}|${asset.name}|${asset.type_name}|${asset.subtype_name}|${asset.currency}`;
   }
 
-  private async updateCachedAssets(): Promise<void> {
+  private async cachePendingCategoryID(): Promise<void> {
+    this.cachedPendingCategoryID = await this.getPendingCategoryID();
+  }
+
+  private async cacheAssets(): Promise<void> {
     const assets = await this.getAssets();
     this.cachedAssetIDs.clear();
     assets.forEach((asset) => {

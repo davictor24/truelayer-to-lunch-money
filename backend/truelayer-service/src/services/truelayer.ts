@@ -39,7 +39,7 @@ interface Transaction {
   description: string;
   amount: number;
   currency: string;
-  status: 'cleared' | 'uncleared';
+  status: 'cleared' | 'pending';
   transaction_type: string;
   transaction_category: string;
   transaction_classification: string[];
@@ -494,13 +494,13 @@ export class TruelayerService {
       Authorization: `Bearer ${accessToken}`,
     };
     const transactions = await Promise.all([
-      this.getUnclearedTransactions(source, query, requestHeaders),
+      this.getPendingTransactions(source, query, requestHeaders),
       this.getClearedTransactions(source, query, requestHeaders),
     ]);
     return transactions[0].concat(transactions[1]);
   }
 
-  private async getUnclearedTransactions(
+  private async getPendingTransactions(
     source: TransactionSource,
     query: URLSearchParams,
     requestHeaders: { Accept: string, Authorization: string },
@@ -515,7 +515,7 @@ export class TruelayerService {
     const transactions: Omit<Transaction, 'status'>[] = (await response.json()).results ?? [];
     return transactions.map((transaction) => ({
       ...transaction,
-      status: 'uncleared',
+      status: 'pending',
     }));
   }
 

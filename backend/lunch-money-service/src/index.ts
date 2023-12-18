@@ -8,7 +8,7 @@ app.get('/', (_: Request, res: Response) => {
   res.send('OK');
 });
 
-lunchMoneyService.startConsumer();
+lunchMoneyService.start();
 
 app.listen(config.port, () => {
   console.log(`Server started at port ${config.port}`);
