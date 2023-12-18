@@ -204,9 +204,7 @@ export class LunchMoneyService {
         skip_duplicates: true,
         check_for_recurring: true,
         debit_as_negative: isCashAsset,
-        // If there was a new balance specified, the asset has already been,
-        // or will be updated in a different request
-        skip_balance_update: transactions.source.balance !== undefined,
+        skip_balance_update: true,
       },
       pending: {
         transactions: pendingTransactions,
@@ -214,7 +212,6 @@ export class LunchMoneyService {
         skip_duplicates: true,
         check_for_recurring: true,
         debit_as_negative: isCashAsset,
-        // Don't update balance for pending transactions
         skip_balance_update: true,
       },
     };

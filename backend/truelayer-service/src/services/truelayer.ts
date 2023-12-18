@@ -246,7 +246,7 @@ export class TruelayerService {
       now,
     );
     const updatedSource = source;
-    if (includeCurrentBalance) {
+    if (includeCurrentBalance || transactions.length > 0) {
       const balance = await this.getBalance(source.account_id, source.type, accessToken);
       updatedSource.balance = balance;
     }
