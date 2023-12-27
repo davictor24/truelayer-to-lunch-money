@@ -1,4 +1,5 @@
 import { Kafka, Consumer } from 'kafkajs';
+import dayjs from 'dayjs';
 import config from '../config';
 
 type LunchMoneyAssetKey = string;
@@ -233,7 +234,12 @@ export class LunchMoneyService {
     }
 
     return {
-      date: transaction.timestamp,
+      // Lunch Money seems to not track transaction time (only date)
+      // and seems to have no concept of time zone for users.
+      // dayjs uses the local timezone by default when formatting,
+      // so we always send the correct date
+      // (assuming this server is running in the account owner's timezone).
+      date: dayjs(transaction.timestamp).format(),
       amount: transaction.amount,
       category_id: categoryID,
       payee,
