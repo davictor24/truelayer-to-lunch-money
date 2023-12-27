@@ -108,36 +108,42 @@ export class LunchMoneyService {
   }
 
   private async processTransactions(transactions: Transactions): Promise<void> {
-    const asset = this.transformTransactionSource(transactions.source);
-    const assetKey = this.getAssetKey(asset);
-    let assetID: LunchMoneyAssetID;
+    try {
+      const asset = this.transformTransactionSource(transactions.source);
+      const assetKey = this.getAssetKey(asset);
+      let assetID: LunchMoneyAssetID;
 
-    if (this.cachedAssetIDs.has(assetKey)) {
-      // 1. If we have the asset cached, use it
-      assetID = this.cachedAssetIDs.get(assetKey);
-      if (asset.balance) {
-        // 2. Afterwards, update the balance if a new one was specified
-        await this.updateAssetBalance(assetID, asset.balance);
+      if (this.cachedAssetIDs.has(assetKey)) {
+        // 1. If we have the asset cached, use it
+        assetID = this.cachedAssetIDs.get(assetKey);
+        if (asset.balance) {
+          // 2. Afterwards, update the balance if a new one was specified
+          await this.updateAssetBalance(assetID, asset.balance);
+        }
+      } else {
+        // 3. If we don't have the asset, create it and update the cache
+        // No need to update the balance afterwards, if the asset has a balance,
+        // it would have been set on creation.
+        assetID = await this.createAsset(asset);
+        this.cachedAssetIDs.set(assetKey, assetID);
       }
-    } else {
-      // 3. If we don't have the asset, create it and update the cache
-      // No need to update the balance afterwards, if the asset has a balance,
-      // it would have been set on creation.
-      assetID = await this.createAsset(asset);
-      this.cachedAssetIDs.set(assetKey, assetID);
-    }
 
-    // 4. Process the transactions, if any exists
-    if (transactions.transactions.length > 0) {
-      const transformedTransactionsSet = this.transformTransactions(
-        transactions,
-        assetID,
-        asset.type_name === 'cash',
-      );
-      await Promise.all([
-        this.insertTransactions(transformedTransactionsSet.cleared),
-        this.insertTransactions(transformedTransactionsSet.pending),
-      ]);
+      // 4. Process the transactions, if any exists
+      if (transactions.transactions.length > 0) {
+        const transformedTransactionsSet = this.transformTransactions(
+          transactions,
+          assetID,
+          asset.type_name === 'cash',
+        );
+        await Promise.all([
+          this.insertTransactions(transformedTransactionsSet.cleared),
+          this.insertTransactions(transformedTransactionsSet.pending),
+        ]);
+      }
+    } catch (err) {
+      console.error(err.stack);
+      // Rethrow error, so the message doesn't get committed
+      throw err;
     }
   }
 
@@ -258,6 +264,9 @@ export class LunchMoneyService {
       method: 'GET',
       headers: getCategoriesRequestHeaders,
     });
+    if (getCategoriesResponse.status !== 200) {
+      await this.throwFetchError(getCategoriesResponse, 'fetching categories');
+    }
     const { categories } = await getCategoriesResponse.json();
     for (let i = 0; i < categories.length; i += 1) {
       if (categories[i].name === LunchMoneyService.PENDING_CATEGORY_NAME) {
@@ -280,6 +289,9 @@ export class LunchMoneyService {
       headers: createCategoriesRequestHeaders,
       body: JSON.stringify(createCategoriesRequestBody),
     });
+    if (createCategoriesResponse.status !== 200) {
+      await this.throwFetchError(createCategoriesResponse, 'creating pending category');
+    }
     return (await createCategoriesResponse.json()).category_id;
   }
 
@@ -291,6 +303,9 @@ export class LunchMoneyService {
       method: 'GET',
       headers: requestHeaders,
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, 'fetching assets');
+    }
     return (await response.json()).assets;
   }
 
@@ -308,6 +323,9 @@ export class LunchMoneyService {
       headers: requestHeaders,
       body: JSON.stringify(requestBody),
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, `creating asset ${asset.institution_name} / ${asset.name}`);
+    }
     return (await response.json()).id;
   }
 
@@ -316,11 +334,14 @@ export class LunchMoneyService {
       Authorization: `Bearer ${config.lunchMoney.accessToken}`,
       'Content-Type': 'application/json',
     };
-    await fetch(`${config.lunchMoney.apiOrigin}/v1/assets/${assetID}`, {
+    const response = await fetch(`${config.lunchMoney.apiOrigin}/v1/assets/${assetID}`, {
       method: 'PUT',
       headers: requestHeaders,
       body: JSON.stringify({ balance }),
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, `updating balance for asset with ID ${assetID}`);
+    }
   }
 
   private async insertTransactions(transactions: LunchMoneyTransactions): Promise<void> {
@@ -331,11 +352,14 @@ export class LunchMoneyService {
       Authorization: `Bearer ${config.lunchMoney.accessToken}`,
       'Content-Type': 'application/json',
     };
-    await fetch(`${config.lunchMoney.apiOrigin}/v1/transactions`, {
+    const response = await fetch(`${config.lunchMoney.apiOrigin}/v1/transactions`, {
       method: 'POST',
       headers: requestHeaders,
       body: JSON.stringify(transactions),
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, 'inserting transactions');
+    }
   }
 
   private getAssetKey(asset: LunchMoneyAsset): LunchMoneyAssetKey {
@@ -353,6 +377,10 @@ export class LunchMoneyService {
       const assetKey = this.getAssetKey(asset);
       this.cachedAssetIDs.set(assetKey, asset.id);
     });
+  }
+
+  private async throwFetchError(response: Response, what: string): Promise<never> {
+    throw new Error(`An error occurred when ${what}\n${await response.text()}`);
   }
 }
 

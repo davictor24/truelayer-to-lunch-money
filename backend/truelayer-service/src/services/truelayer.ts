@@ -195,11 +195,6 @@ export class TruelayerService {
         connection.access_token,
         connection.refresh_token,
       );
-      if (!accessToken) {
-        console.log('Cannot get access token to queue transactions');
-        return;
-      }
-
       const sources = this.mergeTransactionSources(
         connection.connection_name,
         connection.metadata.provider,
@@ -217,8 +212,9 @@ export class TruelayerService {
       );
     } catch (err) {
       console.log(
-        `Something went wrong when queueing transactions for ${connection.connection_name} - ${err.message}\n${err.stack}`,
+        `Something went wrong when queueing transactions for ${connection.connection_name}`,
       );
+      throw err;
     }
   }
 
@@ -274,6 +270,9 @@ export class TruelayerService {
       headers: requestHeaders,
       body: JSON.stringify(requestBody),
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, 'tokens');
+    }
 
     const now = Date.now();
     const tokens = await response.json();
@@ -300,6 +299,9 @@ export class TruelayerService {
       method: 'GET',
       headers: requestHeaders,
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, 'connection metadata');
+    }
     const metadata = (await response.json()).results[0];
     return metadata;
   }
@@ -313,6 +315,9 @@ export class TruelayerService {
       method: 'GET',
       headers: requestHeaders,
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, 'user info');
+    }
     const info = (await response.json()).results[0];
     return info.full_name;
   }
@@ -332,6 +337,9 @@ export class TruelayerService {
     if (response.status === 501) {
       return [];
     }
+    if (response.status !== 200) {
+      await this.throwFetchError(response, `${sourceType}s`);
+    }
     const sources: Account[] | Card[] = (await response.json()).results;
     return sources;
   }
@@ -349,6 +357,9 @@ export class TruelayerService {
       method: 'GET',
       headers: requestHeaders,
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, `balance for ${sourceType} with ID ${accountID}`);
+    }
     const balance = (await response.json()).results[0];
     let { current } = balance;
 
@@ -428,7 +439,7 @@ export class TruelayerService {
     connectionName: string,
     encryptedAccessToken: Token,
     encryptedRefreshToken: Token,
-  ): Promise<Token | undefined> {
+  ): Promise<Token> {
     if (this.shouldUseToken(encryptedAccessToken)) {
       return {
         token: await decrypt(encryptedAccessToken.token),
@@ -441,7 +452,7 @@ export class TruelayerService {
       await this.saveNewAccessToken(connectionName, newAccessToken);
       return newAccessToken;
     }
-    return undefined;
+    throw new Error(`Cannot get access token for ${connectionName}`);
   }
 
   private shouldUseToken(token: Token): boolean {
@@ -464,6 +475,9 @@ export class TruelayerService {
       headers: requestHeaders,
       body: JSON.stringify(requestBody),
     });
+    if (response.status !== 200) {
+      await this.throwFetchError(response, 'access token');
+    }
 
     const now = Date.now();
     const tokens = await response.json();
@@ -520,6 +534,12 @@ export class TruelayerService {
         headers: requestHeaders,
       },
     );
+    if (response.status !== 200) {
+      await this.throwFetchError(
+        response,
+        `pending transactions for source ${source.name} (connection ${source.connection_name})`,
+      );
+    }
     const transactions: Omit<Transaction, 'status'>[] = (await response.json()).results ?? [];
     return transactions.map((transaction) => ({
       ...transaction,
@@ -539,6 +559,12 @@ export class TruelayerService {
         headers: requestHeaders,
       },
     );
+    if (response.status !== 200) {
+      await this.throwFetchError(
+        response,
+        `cleared transactions for source ${source.name} (connection ${source.connection_name})`,
+      );
+    }
     const transactions: Omit<Transaction, 'status'>[] = (await response.json()).results ?? [];
     return transactions.map((transaction) => ({
       ...transaction,
@@ -560,6 +586,10 @@ export class TruelayerService {
         },
       ],
     });
+  }
+
+  private async throwFetchError(response: Response, what: string): Promise<never> {
+    throw new Error(`An error occurred when fetching ${what}\n${await response.text()}`);
   }
 }
 

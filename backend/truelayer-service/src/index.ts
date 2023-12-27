@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import cron from 'node-cron';
@@ -29,18 +29,32 @@ app.get('/truelayer/connections', getConnections);
 app.delete('/truelayer/connections/:name', deleteConnection);
 app.post('/truelayer/connections/sync/:name', queueTransactionsForConnectionNameWayBack);
 
+app.use((err: Error, _: Request, res: Response) => {
+  console.error(err.stack);
+  res.status(500).send('An error occurred');
+});
+
+const queueTransactions = (wayBack = false) => {
+  try {
+    if (wayBack) truelayerService.queueTransactionsWayBack();
+    else truelayerService.queueTransactions();
+  } catch (err) {
+    console.error(err.stack);
+  }
+};
+
 // Runs every 15 minutes, apart from 12am every day
 cron.schedule('*/15 1-23 * * *', () => {
-  truelayerService.queueTransactions();
+  queueTransactions();
 });
 cron.schedule('15-45/15 0 * * *', () => {
-  truelayerService.queueTransactions();
+  queueTransactions();
 });
 
 // Runs 12am every day to get transactions that might have cleared
 // (or transactions that might have been missed for some reason)
 cron.schedule('0 0 * * *', () => {
-  truelayerService.queueTransactionsWayBack();
+  queueTransactions(true);
 });
 
 app.listen(config.port, () => {
