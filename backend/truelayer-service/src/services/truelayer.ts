@@ -65,6 +65,16 @@ export class TruelayerService {
   }
 
   getAuthURL(name: string, url: string): string {
+    if (!config.truelayer.state.secret) {
+      throw new Error('TRUELAYER_STATE_SECRET environment variable not specified');
+    }
+    if (!config.truelayer.clientID) {
+      throw new Error('TRUELAYER_CLIENT_ID environment variable not specified');
+    }
+    if (!config.truelayer.redirectURI) {
+      throw new Error('TRUELAYER_REDIRECT_URI environment variable not specified');
+    }
+
     const state = jwt.sign(
       { name, url },
       config.truelayer.state.secret,
@@ -72,7 +82,7 @@ export class TruelayerService {
     );
     const query = new URLSearchParams({
       response_type: 'code',
-      client_id: config.truelayer.clientId,
+      client_id: config.truelayer.clientID,
       // TODO: Get data on direct debits and standing orders too, since we have permission
       scope: 'info accounts balance cards transactions direct_debits standing_orders offline_access',
       redirect_uri: config.truelayer.redirectURI,
@@ -87,6 +97,10 @@ export class TruelayerService {
   }
 
   decodeState(state: string): DecodedState {
+    if (!config.truelayer.state.secret) {
+      throw new Error('TRUELAYER_STATE_SECRET environment variable not specified');
+    }
+
     const decodedState = jwt.verify(
       state,
       config.truelayer.state.secret,
@@ -259,7 +273,7 @@ export class TruelayerService {
       'Content-Type': 'application/json',
     };
     const requestBody = {
-      client_id: config.truelayer.clientId,
+      client_id: config.truelayer.clientID,
       client_secret: config.truelayer.clientSecret,
       code,
       grant_type: 'authorization_code',
@@ -465,7 +479,7 @@ export class TruelayerService {
       'Content-Type': 'application/json',
     };
     const requestBody = {
-      client_id: config.truelayer.clientId,
+      client_id: config.truelayer.clientID,
       client_secret: config.truelayer.clientSecret,
       grant_type: 'refresh_token',
       refresh_token: refreshToken,

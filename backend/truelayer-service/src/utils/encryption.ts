@@ -3,6 +3,12 @@ import config from '../config';
 
 const algorithm = 'aes-256-cbc';
 const { secret, salt } = config.truelayer.tokenEncryption;
+if (!secret) {
+  throw new Error('TRUELAYER_TOKEN_ENCRYPTION_SECRET environment variable not specified');
+}
+if (!salt) {
+  throw new Error('TRUELAYER_TOKEN_ENCRYPTION_SALT environment variable not specified');
+}
 const key = crypto.scryptSync(secret, salt, 32);
 
 export async function encrypt(plainText: string): Promise<string> {

@@ -101,8 +101,10 @@ export class LunchMoneyService {
     await this.consumer.subscribe({ topic: config.kafka.topics.transactions });
     await this.consumer.run({
       eachMessage: async ({ message }) => {
-        const transactions = JSON.parse(message.value.toString());
-        await this.processTransactions(transactions);
+        if (message.value) {
+          const transactions = JSON.parse(message.value.toString());
+          await this.processTransactions(transactions);
+        }
       },
     });
   }
@@ -115,7 +117,7 @@ export class LunchMoneyService {
 
       if (this.cachedAssetIDs.has(assetKey)) {
         // 1. If we have the asset cached, use it
-        assetID = this.cachedAssetIDs.get(assetKey);
+        assetID = this.cachedAssetIDs.get(assetKey)!;
         if (asset.balance) {
           // 2. Afterwards, update the balance if a new one was specified
           await this.updateAssetBalance(assetID, asset.balance);
@@ -175,7 +177,7 @@ export class LunchMoneyService {
       subtype_name: subtypeName,
       name: source.name,
       display_name: source.name,
-      balance: source.balance ? String(source.balance) : undefined,
+      balance: typeof source.balance === 'number' ? String(source.balance) : undefined,
       currency: source.currency.toLowerCase(),
       // Abusing the intention of this field,
       // but it organises everything very nicely.
