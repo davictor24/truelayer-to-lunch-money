@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import config from './config';
+import logger from './utils/logger';
 import lunchMoneyService from './services/lunchMoney';
 
 const app = express();
@@ -11,5 +12,5 @@ app.get('/', (_: Request, res: Response) => {
 lunchMoneyService.start();
 
 app.listen(config.port, () => {
-  console.log(`Server started at port ${config.port}`);
+  logger.info(`Server started at port ${config.port}`);
 });

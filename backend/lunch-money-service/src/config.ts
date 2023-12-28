@@ -1,4 +1,5 @@
 export default {
+  logLevel: process.env.LOG_LEVEL ?? 'info',
   port: process.env.PORT ?? 8081,
   lunchMoney: {
     accessToken: process.env.LUNCH_MONEY_ACCESS_TOKEN,
