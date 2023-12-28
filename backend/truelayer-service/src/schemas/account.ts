@@ -4,7 +4,6 @@ export interface Account {
   account_id: string;
   account_type: string;
   account_number: AccountNumber;
-  balance: number;
   currency: string;
   display_name: string;
   update_timestamp: Date;

@@ -1,6 +1,7 @@
 import { Kafka, Producer } from 'kafkajs';
 import jwt from 'jsonwebtoken';
 import config from '../config';
+import logger from '../utils/logger';
 import ConnectionModel from '../models/connection';
 import { Connection, Token } from '../schemas/connection';
 import { Metadata, Provider } from '../schemas/metadata';
@@ -89,11 +90,16 @@ export class TruelayerService {
       providers: 'uk-ob-all uk-oauth-all',
       state,
     });
-    return `${config.truelayer.authOrigin}?${query.toString()}`;
+    const authURL = `${config.truelayer.authOrigin}?${query.toString()}`;
+    logger.info(`Auth URL for connection ${name} from URL ${url} - ${authURL.replace(state, 'REDACTED')}`);
+    return authURL;
   }
 
   async getConnections(): Promise<Connection[]> {
-    return ConnectionModel.find({}).exec();
+    const connections = await ConnectionModel.find({}).exec();
+    const count = connections.length;
+    logger.info(`Retrieved ${count} connection${count === 1 ? '' : 's'} from DB`);
+    return connections;
   }
 
   decodeState(state: string): DecodedState {
@@ -105,13 +111,16 @@ export class TruelayerService {
       state,
       config.truelayer.state.secret,
     ) as DecodedState;
-    if (typeof decodedState.name !== 'string' || typeof decodedState.url !== 'string') {
+    const { name, url } = decodedState;
+    if (typeof name !== 'string' || typeof url !== 'string') {
       throw new Error('Invalid state');
     }
+    logger.info(`Decoded state for connection ${name} from URL ${url}`);
     return decodedState;
   }
 
   async createConnection(name: string, code: string): Promise<Connection> {
+    logger.info(`Creating connection for ${name}`);
     // 1. Get tokens
     const tokens = await this.getTokens(code);
 
@@ -145,13 +154,18 @@ export class TruelayerService {
     );
 
     // 7. Sync transactions which happened within the past WAY_BACK_DAYS days
-    this.queueTransactionsForConnectionWayBack(connection);
+    this.queueTransactionsForConnectionWayBack(connection).catch((err) => {
+      logger.error(`An error occurred when queueing transactions for new connection ${name}`);
+      logger.error(err.stack);
+    });
 
     return connection;
   }
 
   async deleteConnection(name: string): Promise<void> {
-    await ConnectionModel.deleteOne({ connection_name: name }).exec();
+    const result = await ConnectionModel.deleteOne({ connection_name: name }).exec();
+    const count = result.deletedCount;
+    logger.info(`Deleted ${count} connection${count === 1 ? '' : 's'} from DB`);
   }
 
   async queueTransactions(
@@ -159,6 +173,8 @@ export class TruelayerService {
     includeCurrentBalance?: boolean,
   ): Promise<void> {
     const connections = await this.getConnections();
+    const count = connections.length;
+    logger.info(`Queueing transactions for ${count} connections${count === 1 ? '' : 's'}`);
     await Promise.all(
       connections.map((connection) => this.queueTransactionsForConnection(
         connection,
@@ -203,6 +219,8 @@ export class TruelayerService {
     since?: Date,
     includeCurrentBalance?: boolean,
   ): Promise<void> {
+    const logSuffix = `transactions for ${connection.connection_name} since ${since}`;
+    logger.info(`Queueing ${logSuffix}`);
     try {
       const accessToken = await this.getAccessToken(
         connection.connection_name,
@@ -224,9 +242,10 @@ export class TruelayerService {
           includeCurrentBalance ?? false,
         )),
       );
+      logger.info(`Successfully queued ${logSuffix}`);
     } catch (err) {
-      console.log(
-        `Something went wrong when queueing transactions for ${connection.connection_name}`,
+      logger.error(
+        `Something went wrong when queueing ${logSuffix}`,
       );
       throw err;
     }
@@ -247,24 +266,33 @@ export class TruelayerService {
     since: Date,
     includeCurrentBalance: boolean,
   ): Promise<void> {
-    console.log(`Queueing transactions for ${connectionName} / ${source.name} since ${since}`);
-    const now = new Date();
-    const transactions = await this.getTransactions(
-      accessToken,
-      source,
-      since,
-      now,
-    );
-    const updatedSource = source;
-    if (includeCurrentBalance || transactions.length > 0) {
-      const balance = await this.getBalance(source.account_id, source.type, accessToken);
-      updatedSource.balance = balance;
+    const logSuffix = `transactions for ${this.getKeyForSource(source)} since ${since}`;
+    logger.info(`Queueing ${logSuffix}`);
+    try {
+      const now = new Date();
+      const transactions = await this.getTransactions(
+        accessToken,
+        source,
+        since,
+        now,
+      );
+      const updatedSource = source;
+      if (includeCurrentBalance || transactions.length > 0) {
+        const balance = await this.getBalance(source.account_id, source.type, accessToken);
+        updatedSource.balance = balance;
+      }
+      await this.publishTransactions({ source: updatedSource, transactions });
+      await ConnectionModel.findOneAndUpdate(
+        { connection_name: connectionName },
+        { last_synced: now },
+      ).exec();
+      logger.info(`Successfully queued ${logSuffix}`);
+    } catch (err) {
+      logger.error(
+        `Something went wrong when queueing ${logSuffix}`,
+      );
+      throw err;
     }
-    await this.publishTransactions({ source: updatedSource, transactions });
-    await ConnectionModel.findOneAndUpdate(
-      { connection_name: connectionName },
-      { last_synced: now },
-    ).exec();
   }
 
   private async getTokens(code: string): Promise<Tokens> {
@@ -284,9 +312,7 @@ export class TruelayerService {
       headers: requestHeaders,
       body: JSON.stringify(requestBody),
     });
-    if (response.status !== 200) {
-      await this.throwFetchError(response, 'tokens');
-    }
+    await this.throwFetchErrorOrLog(response, 'tokens');
 
     const now = Date.now();
     const tokens = await response.json();
@@ -313,9 +339,7 @@ export class TruelayerService {
       method: 'GET',
       headers: requestHeaders,
     });
-    if (response.status !== 200) {
-      await this.throwFetchError(response, 'connection metadata');
-    }
+    await this.throwFetchErrorOrLog(response, 'connection metadata');
     const metadata = (await response.json()).results[0];
     return metadata;
   }
@@ -329,9 +353,7 @@ export class TruelayerService {
       method: 'GET',
       headers: requestHeaders,
     });
-    if (response.status !== 200) {
-      await this.throwFetchError(response, 'user info');
-    }
+    await this.throwFetchErrorOrLog(response, 'user info');
     const info = (await response.json()).results[0];
     return info.full_name;
   }
@@ -351,9 +373,7 @@ export class TruelayerService {
     if (response.status === 501) {
       return [];
     }
-    if (response.status !== 200) {
-      await this.throwFetchError(response, `${sourceType}s`);
-    }
+    await this.throwFetchErrorOrLog(response, `${sourceType}s`);
     const sources: Account[] | Card[] = (await response.json()).results;
     return sources;
   }
@@ -367,19 +387,25 @@ export class TruelayerService {
       Accept: 'application/json',
       Authorization: `Bearer ${accessToken}`,
     };
-    const response = await fetch(`${config.truelayer.apiOrigin}/data/v1/${sourceType}s/${accountID}/balance`, {
-      method: 'GET',
-      headers: requestHeaders,
+    // Being sneaky and bypassing TrueLayer's one-hour cache by attaching a unique query param
+    // Alternatively we could sync once every hour, but that's less fun :)
+    const query = new URLSearchParams({
+      t: new Date().toISOString(),
     });
-    if (response.status !== 200) {
-      await this.throwFetchError(response, `balance for ${sourceType} with ID ${accountID}`);
-    }
+    const response = await fetch(
+      `${config.truelayer.apiOrigin}/data/v1/${sourceType}s/${accountID}/balance?${query.toString()}`,
+      {
+        method: 'GET',
+        headers: requestHeaders,
+      },
+    );
+    await this.throwFetchErrorOrLog(response, `balance for ${sourceType} with ID ${accountID}`);
     const balance = (await response.json()).results[0];
     let { current } = balance;
 
     // Only noticed this issue with Monzo Flex since it uses a different sign convention.
     // Might work too for others (if any) using a negative sign convention for credit cards.
-    if (sourceType === 'card' && balance.available && balance.available < 0) {
+    if (sourceType === 'card' && typeof balance.available === 'number' && balance.available < 0) {
       current *= -1;
     }
 
@@ -401,7 +427,6 @@ export class TruelayerService {
         type: 'account',
         sub_type: account.account_type,
         provider: provider.display_name,
-        balance: account.balance,
         currency: account.currency,
       });
     });
@@ -413,7 +438,6 @@ export class TruelayerService {
         type: 'card',
         sub_type: card.card_type,
         provider: provider.display_name,
-        balance: card.balance,
         currency: card.currency,
       });
     });
@@ -446,6 +470,7 @@ export class TruelayerService {
       last_synced: new Date(),
     };
     await ConnectionModel.findOneAndUpdate(filter, connection, { upsert: true }).exec();
+    logger.info(`Saved connection ${connectionName} to DB`);
     return { ...filter, ...connection };
   }
 
@@ -489,9 +514,7 @@ export class TruelayerService {
       headers: requestHeaders,
       body: JSON.stringify(requestBody),
     });
-    if (response.status !== 200) {
-      await this.throwFetchError(response, 'access token');
-    }
+    await this.throwFetchErrorOrLog(response, 'access token');
 
     const now = Date.now();
     const tokens = await response.json();
@@ -513,6 +536,7 @@ export class TruelayerService {
       { connection_name: connectionName },
       { access_token: token },
     ).exec();
+    logger.info(`Saved new access token for ${connectionName} into DB`);
   }
 
   private async getTransactions(
@@ -529,11 +553,13 @@ export class TruelayerService {
       Accept: 'application/json',
       Authorization: `Bearer ${accessToken}`,
     };
-    const transactions = await Promise.all([
+    const transactions = (await Promise.all([
       this.getPendingTransactions(source, query, requestHeaders),
       this.getClearedTransactions(source, query, requestHeaders),
-    ]);
-    return transactions[0].concat(transactions[1]);
+    ])).flat();
+    const count = transactions.length;
+    logger.info(`Fetched ${count} transaction${count === 1 ? '' : 's'} for ${this.getKeyForSource(source)}`);
+    return transactions;
   }
 
   private async getPendingTransactions(
@@ -541,6 +567,7 @@ export class TruelayerService {
     query: URLSearchParams,
     requestHeaders: { Accept: string, Authorization: string },
   ): Promise<Transaction[]> {
+    const key = this.getKeyForSource(source);
     const response = await fetch(
       `${config.truelayer.apiOrigin}/data/v1/${source.type}s/${source.account_id}/transactions/pending?${query.toString()}`,
       {
@@ -548,13 +575,10 @@ export class TruelayerService {
         headers: requestHeaders,
       },
     );
-    if (response.status !== 200) {
-      await this.throwFetchError(
-        response,
-        `pending transactions for source ${source.name} (connection ${source.connection_name})`,
-      );
-    }
+    await this.throwFetchErrorOrLog(response, `pending transactions for ${key}`);
     const transactions: Omit<Transaction, 'status'>[] = (await response.json()).results ?? [];
+    const count = transactions.length;
+    logger.info(`Fetched ${count} pending transaction${count === 1 ? '' : 's'} for ${key}`);
     return transactions.map((transaction) => ({
       ...transaction,
       status: 'pending',
@@ -566,6 +590,7 @@ export class TruelayerService {
     query: URLSearchParams,
     requestHeaders: { Accept: string, Authorization: string },
   ): Promise<Transaction[]> {
+    const key = this.getKeyForSource(source);
     const response = await fetch(
       `${config.truelayer.apiOrigin}/data/v1/${source.type}s/${source.account_id}/transactions?${query.toString()}`,
       {
@@ -573,13 +598,10 @@ export class TruelayerService {
         headers: requestHeaders,
       },
     );
-    if (response.status !== 200) {
-      await this.throwFetchError(
-        response,
-        `cleared transactions for source ${source.name} (connection ${source.connection_name})`,
-      );
-    }
+    await this.throwFetchErrorOrLog(response, `cleared transactions for ${key}`);
     const transactions: Omit<Transaction, 'status'>[] = (await response.json()).results ?? [];
+    const count = transactions.length;
+    logger.info(`Fetched ${count} cleared transaction${count === 1 ? '' : 's'} for ${key}`);
     return transactions.map((transaction) => ({
       ...transaction,
       status: 'cleared',
@@ -587,7 +609,10 @@ export class TruelayerService {
   }
 
   private async publishTransactions(transactions: Transactions): Promise<void> {
-    if (transactions.transactions.length === 0 && !transactions.source.balance) {
+    const key = this.getKeyForSource(transactions.source);
+    const count = transactions.transactions.length;
+    if (count === 0 && transactions.source.balance === undefined) {
+      logger.info(`No transaction for ${key}, will ignore`);
       return;
     }
     await this.producer.connect();
@@ -595,15 +620,23 @@ export class TruelayerService {
       topic: config.kafka.topics.transactions,
       messages: [
         {
-          key: `${transactions.source.connection_name}|${transactions.source.name}`,
+          key,
           value: JSON.stringify(transactions),
         },
       ],
     });
+    logger.info(`Sent ${count} transaction${count === 1 ? '' : 's'} for ${key}`);
   }
 
-  private async throwFetchError(response: Response, what: string): Promise<never> {
-    throw new Error(`An error occurred when fetching ${what}\n${await response.text()}`);
+  private async throwFetchErrorOrLog(response: Response, what: string): Promise<void> {
+    if (response.status !== 200) {
+      throw new Error(`An error occurred when fetching ${what} \n${await response.text()} `);
+    }
+    logger.info(`Got status ${response.status} fetching ${what} `);
+  }
+
+  private getKeyForSource(source: TransactionSource): string {
+    return `${source.connection_name}| ${source.name}| ${source.type}| ${source.sub_type}| ${source.currency} `;
   }
 }
 

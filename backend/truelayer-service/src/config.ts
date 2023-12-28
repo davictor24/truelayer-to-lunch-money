@@ -1,4 +1,5 @@
 export default {
+  logLevel: process.env.LOG_LEVEL ?? 'info',
   port: process.env.PORT ?? 8080,
   truelayer: {
     authOrigin: process.env.TRUELAYER_AUTH_ORIGIN ?? 'https://auth.truelayer.com',

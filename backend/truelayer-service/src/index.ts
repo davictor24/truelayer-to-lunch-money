@@ -3,6 +3,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import cron from 'node-cron';
 import config from './config';
+import logger from './utils/logger';
 import { health } from './controllers/mongo';
 import {
   auth,
@@ -30,7 +31,7 @@ app.delete('/truelayer/connections/:name', deleteConnection);
 app.post('/truelayer/connections/sync/:name', queueTransactionsForConnectionNameWayBack);
 
 app.use((err: Error, _: Request, res: Response) => {
-  console.error(err.stack);
+  logger.error(err.stack);
   res.status(500).send('An error occurred');
 });
 
@@ -39,7 +40,7 @@ const queueTransactions = async (wayBack = false) => {
     if (wayBack) await truelayerService.queueTransactionsWayBack();
     else await truelayerService.queueTransactions();
   } catch (err) {
-    console.error(err.stack);
+    logger.error(err.stack);
   }
 };
 
@@ -58,5 +59,5 @@ cron.schedule('0 0 * * *', () => {
 });
 
 app.listen(config.port, () => {
-  console.log(`Server started at port ${config.port}`);
+  logger.info(`Server started at port ${config.port}`);
 });

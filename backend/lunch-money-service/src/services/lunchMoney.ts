@@ -139,7 +139,7 @@ export class LunchMoneyService {
       // 3. Process the transactions, if any exists
       const count = transactions.transactions.length;
       if (count > 0) {
-        logger.info(`Processing ${count} transaction${count > 1 ? 's' : ''} for asset ${assetKey}`);
+        logger.info(`Processing ${count} transaction${count === 1 ? '' : 's'} for asset ${assetKey}`);
         const transformedTransactionsSet = this.transformTransactions(
           transactions,
           assetID,
@@ -278,7 +278,7 @@ export class LunchMoneyService {
     // and we end up skipping duplicates
     const count = transactions.length;
     if (shouldSkip) {
-      logger.warn(`Will skip duplicates for ${count} transaction${count > 1 ? 's' : ''}`);
+      logger.warn(`Will skip duplicates for ${count} transaction${count === 1 ? '' : 's'}`);
     }
     return shouldSkip;
   }
@@ -339,7 +339,7 @@ export class LunchMoneyService {
     logger.info(`Got status ${response.status} fetching assets`);
     const { assets } = await response.json();
     const count = assets.length;
-    logger.info(`Fetched ${count} asset${count > 1 ? 's' : ''}`);
+    logger.info(`Fetched ${count} asset${count === 1 ? '' : 's'}`);
     return assets;
   }
 
@@ -422,7 +422,7 @@ export class LunchMoneyService {
       this.cacheAsset(assetKey, asset.id);
       logger.info(`Cached asset ${assetKey}`);
     });
-    logger.info(`Cached ${count} asset${count > 1 ? 's' : ''}`);
+    logger.info(`Cached ${count} asset${count === 1 ? '' : 's'}`);
   }
 
   private cacheAsset(assetKey: LunchMoneyAssetKey, assetID: LunchMoneyAssetID) {
