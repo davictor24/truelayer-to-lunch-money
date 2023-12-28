@@ -34,10 +34,10 @@ app.use((err: Error, _: Request, res: Response) => {
   res.status(500).send('An error occurred');
 });
 
-const queueTransactions = (wayBack = false) => {
+const queueTransactions = async (wayBack = false) => {
   try {
-    if (wayBack) truelayerService.queueTransactionsWayBack();
-    else truelayerService.queueTransactions();
+    if (wayBack) await truelayerService.queueTransactionsWayBack();
+    else await truelayerService.queueTransactions();
   } catch (err) {
     console.error(err.stack);
   }

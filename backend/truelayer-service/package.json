@@ -7,8 +7,8 @@
     "build": "tsc",
     "lint:check": "eslint . --ext=ts",
     "lint:fix": "eslint . --ext=ts --fix",
-    "start": "npm run build && node .",
-    "start:prod": "node .",
+    "start": "npm run build && npm run start:prod",
+    "start:prod": "node --enable-source-maps .",
     "start:dev": "ts-node-dev --respawn src/index.ts",
     "test": "true"
   },

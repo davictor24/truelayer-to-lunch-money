@@ -341,13 +341,15 @@ export class LunchMoneyService {
       headers: requestHeaders,
       body: JSON.stringify({ balance }),
     });
-    if (response.status !== 200) {
+    if (response.status > 299) {
       await this.throwFetchError(response, `updating balance for asset with ID ${assetID}`);
     }
+    console.log(`Got status ${response.status} updating balance for asset with ID ${assetID}`);
   }
 
   private async insertTransactions(transactions: LunchMoneyTransactions): Promise<void> {
-    if (transactions.transactions.length === 0) {
+    const count = transactions.transactions.length;
+    if (count === 0) {
       return;
     }
     const requestHeaders = {
@@ -359,9 +361,10 @@ export class LunchMoneyService {
       headers: requestHeaders,
       body: JSON.stringify(transactions),
     });
-    if (response.status !== 200) {
+    if (response.status > 299) {
       await this.throwFetchError(response, 'inserting transactions');
     }
+    console.log(`Got status ${response.status} inserting ${count} transaction${count === 1 ? '' : 's'}`);
   }
 
   private getAssetKey(asset: LunchMoneyAsset): LunchMoneyAssetKey {
