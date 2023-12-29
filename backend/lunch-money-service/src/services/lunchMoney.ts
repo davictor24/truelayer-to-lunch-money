@@ -84,10 +84,10 @@ export class LunchMoneyService {
 
   constructor() {
     const kafka = new Kafka({
-      clientId: 'lunch-money-service',
+      clientId: 'lunch-money-service-1',
       brokers: config.kafka.brokers,
     });
-    this.consumer = kafka.consumer({ groupId: 'main' });
+    this.consumer = kafka.consumer({ groupId: 'lunch-money-service' });
   }
 
   async start(): Promise<void> {
