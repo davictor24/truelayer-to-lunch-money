@@ -46,11 +46,6 @@ interface LunchMoneyAsset {
   institution_name: string;
 }
 
-interface LunchMoneyTransactionsSet {
-  cleared: LunchMoneyTransactions;
-  pending: LunchMoneyTransactions;
-}
-
 interface LunchMoneyTransactions {
   transactions: LunchMoneyTransaction[];
   apply_rules: boolean;
@@ -140,15 +135,12 @@ export class LunchMoneyService {
       const count = transactions.transactions.length;
       if (count > 0) {
         logger.info(`Processing ${count} transaction${count === 1 ? '' : 's'} for asset ${assetKey}`);
-        const transformedTransactionsSet = this.transformTransactions(
+        const transformedTransactions = this.transformTransactions(
           transactions,
           assetID,
           asset.type_name === 'cash',
         );
-        await Promise.all([
-          this.insertTransactions(transformedTransactionsSet.cleared),
-          this.insertTransactions(transformedTransactionsSet.pending),
-        ]);
+        await Promise.all(transformedTransactions.map(this.insertTransactions));
       } else {
         logger.info(`No transactions to process for asset ${assetKey}`);
       }
@@ -201,7 +193,7 @@ export class LunchMoneyService {
     transactions: Transactions,
     assetID: LunchMoneyAssetID,
     isCashAsset: boolean,
-  ): LunchMoneyTransactionsSet {
+  ): LunchMoneyTransactions[] {
     const clearedTransactions: LunchMoneyTransaction[] = [];
     const pendingTransactions: LunchMoneyTransaction[] = [];
     transactions.transactions.forEach((transaction) => {
@@ -218,24 +210,29 @@ export class LunchMoneyService {
       + `for asset ${this.getAssetKey(assetID)}`,
     );
 
-    return {
-      cleared: {
-        transactions: clearedTransactions,
-        apply_rules: true,
-        skip_duplicates: this.shouldSkipDuplicates(clearedTransactions),
-        check_for_recurring: true,
-        debit_as_negative: isCashAsset,
-        skip_balance_update: true,
-      },
-      pending: {
-        transactions: pendingTransactions,
-        apply_rules: false,
-        skip_duplicates: this.shouldSkipDuplicates(pendingTransactions),
-        check_for_recurring: false,
-        debit_as_negative: isCashAsset,
-        skip_balance_update: true,
-      },
-    };
+    // A problem with the Lunch Money API is that if skip_duplicates is set to false
+    // and if any of the transactions has an external_id which already exists,
+    // all other transactions in the array, even new ones which don't exist yet, are ignored.
+    // The only solution I can think of right now is to send each transaction independently
+    // (and hope we don't hit rate limits).
+    const transformedTransactions: LunchMoneyTransactions[] = [];
+    clearedTransactions.forEach((transaction) => transformedTransactions.push({
+      transactions: [transaction],
+      apply_rules: true,
+      skip_duplicates: this.shouldSkipDuplicates(transaction),
+      check_for_recurring: true,
+      debit_as_negative: isCashAsset,
+      skip_balance_update: true,
+    }));
+    pendingTransactions.forEach((transaction) => transformedTransactions.push({
+      transactions: [transaction],
+      apply_rules: false,
+      skip_duplicates: this.shouldSkipDuplicates(transaction),
+      check_for_recurring: false,
+      debit_as_negative: isCashAsset,
+      skip_balance_update: true,
+    }));
+    return transformedTransactions;
   }
 
   private transformTransaction(
@@ -270,15 +267,13 @@ export class LunchMoneyService {
     };
   }
 
-  private shouldSkipDuplicates(transactions: LunchMoneyTransaction[]): boolean {
-    // If all transactions have external IDs, there is no need to skip duplicates,
-    // as deduplication by external_id should be enough
-    const shouldSkip = transactions.some((transaction) => !transaction.external_id);
+  private shouldSkipDuplicates(transaction: LunchMoneyTransaction): boolean {
+    // De-duplication by external_id should be enough, if one is present
+    const shouldSkip = !transaction.external_id;
     // Most sources should provide external IDs, so we want to know if any doesn't
     // and we end up skipping duplicates
-    const count = transactions.length;
     if (shouldSkip) {
-      logger.warn(`Will skip duplicates for ${count} transaction${count === 1 ? '' : 's'}`);
+      logger.warn(`Will skip duplicates for transaction for ${this.getAssetKey(transaction.asset_id)}`);
     }
     return shouldSkip;
   }
@@ -399,7 +394,6 @@ export class LunchMoneyService {
     if (response.status > 299) {
       await this.throwFetchError(response, 'inserting transactions');
     }
-    logger.info(`Got status ${response.status} inserting ${count} transaction${count === 1 ? '' : 's'}`);
   }
 
   private getKeyForAsset(asset: LunchMoneyAsset): LunchMoneyAssetKey {

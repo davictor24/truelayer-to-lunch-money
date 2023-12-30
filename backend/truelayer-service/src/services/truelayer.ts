@@ -636,7 +636,7 @@ export class TruelayerService {
   }
 
   private getKeyForSource(source: TransactionSource): string {
-    return `${source.connection_name}| ${source.name}| ${source.type}| ${source.sub_type}| ${source.currency} `;
+    return `${source.connection_name}|${source.name}|${source.type}|${source.sub_type}|${source.currency}`;
   }
 }
 
