@@ -19,7 +19,7 @@ import {
   Input,
   useToast,
 } from '@chakra-ui/react';
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus, FaSync } from 'react-icons/fa';
 import ColorModeSwitcher from './components/ColorModeSwitcher';
 import Connections from './components/Connections';
 import truelayerService, { Connection } from './services/truelayer';
@@ -74,9 +74,19 @@ export default function App() {
   const sync = (name: string) => {
     const promise = truelayerService.sync(name);
     toast.promise(promise, {
-      success: { title: 'Sync successful', description: 'Looks great' },
+      success: { title: 'Sync successful', description: 'Looks great', duration: 2000 },
       error: { title: 'Sync failed', description: 'Something went wrong' },
       loading: { title: 'Syncing...', description: 'Please wait' },
+    });
+    promise.then(() => getConnections());
+  };
+
+  const syncAll = () => {
+    const promise = truelayerService.syncAll();
+    toast.promise(promise, {
+      success: { title: 'Sync successful', description: 'Looks great', duration: 2000 },
+      error: { title: 'Sync failed', description: 'Something went wrong' },
+      loading: { title: 'Syncing all connections...', description: 'Please wait' },
     });
     promise.then(() => getConnections());
   };
@@ -90,10 +100,12 @@ export default function App() {
       <Box fontSize="xl">
         <Grid minH="100vh" p={4}>
           <ColorModeSwitcher justifySelf="flex-end" />
-          <Text align="center" fontSize="5xl">
+          <Text align="center" fontSize="4xl">
             Connections
             &nbsp;
             <IconButton aria-label="Add connection" size="lg" onClick={handleOpen} icon={<FaPlus />} />
+            &nbsp;
+            <IconButton aria-label="Sync all connections" size="lg" onClick={syncAll} icon={<FaSync />} />
           </Text>
           {connections.length > 0
             ? (

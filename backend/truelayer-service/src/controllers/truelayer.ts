@@ -87,3 +87,16 @@ export async function queueTransactionsForConnectionNameWayBack(
     next(err);
   }
 }
+
+export async function queueTransactionsWayBack(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    await truelayerService.queueTransactionsWayBack();
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}

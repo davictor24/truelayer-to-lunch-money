@@ -65,6 +65,16 @@ export class TruelayerService {
     }
   }
 
+  async syncAll(): Promise<void> {
+    const response = await fetch(
+      `${this.apiOrigin}/connections/sync`,
+      { method: 'POST' },
+    );
+    if (response.status !== 204) {
+      throw new Error('Failed to sync all connections');
+    }
+  }
+
   private encodeRFC3986URIComponent(str: string) {
     return encodeURIComponent(str).replace(
       /[!'()*]/g,

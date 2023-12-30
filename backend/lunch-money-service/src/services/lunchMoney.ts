@@ -134,13 +134,15 @@ export class LunchMoneyService {
       // 3. Process the transactions, if any exists
       const count = transactions.transactions.length;
       if (count > 0) {
-        logger.info(`Processing ${count} transaction${count === 1 ? '' : 's'} for asset ${assetKey}`);
+        const logSuffix = `${count} transaction${count === 1 ? '' : 's'} for asset ${assetKey}`;
+        logger.info(`Processing ${logSuffix}`);
         const transformedTransactions = this.transformTransactions(
           transactions,
           assetID,
           asset.type_name === 'cash',
         );
         await Promise.all(transformedTransactions.map(this.insertTransactions));
+        logger.info(`Successfully processed ${logSuffix}`);
       } else {
         logger.info(`No transactions to process for asset ${assetKey}`);
       }

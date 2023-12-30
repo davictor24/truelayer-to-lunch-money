@@ -11,6 +11,7 @@ import {
   getConnections,
   deleteConnection,
   queueTransactionsForConnectionNameWayBack,
+  queueTransactionsWayBack,
 } from './controllers/truelayer';
 import truelayerService from './services/truelayer';
 
@@ -29,6 +30,7 @@ app.get('/truelayer/redirect', redirect);
 app.get('/truelayer/connections', getConnections);
 app.delete('/truelayer/connections/:name', deleteConnection);
 app.post('/truelayer/connections/sync/:name', queueTransactionsForConnectionNameWayBack);
+app.post('/truelayer/connections/sync', queueTransactionsWayBack);
 
 app.use((err: Error, _: Request, res: Response) => {
   logger.error(err.stack);
