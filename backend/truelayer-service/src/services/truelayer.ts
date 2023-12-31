@@ -87,11 +87,11 @@ export class TruelayerService {
       // TODO: Get data on direct debits and standing orders too, since we have permission
       scope: 'info accounts balance cards transactions direct_debits standing_orders offline_access',
       redirect_uri: config.truelayer.redirectURI,
-      providers: 'uk-ob-all uk-oauth-all',
+      providers: config.truelayer.providers,
       state,
     });
     const authURL = `${config.truelayer.authOrigin}?${query.toString()}`;
-    logger.info(`Auth URL for connection ${name} from URL ${url} - ${authURL.replace(state, 'REDACTED')}`);
+    logger.verbose(`Auth URL for connection ${name} from URL ${url} - ${authURL.replace(state, 'REDACTED')}`);
     return authURL;
   }
 
@@ -630,9 +630,9 @@ export class TruelayerService {
 
   private async throwFetchErrorOrLog(response: Response, what: string): Promise<void> {
     if (response.status !== 200) {
-      throw new Error(`An error occurred when fetching ${what} \n${await response.text()} `);
+      throw new Error(`An error occurred when fetching ${what}\n${await response.text()}`);
     }
-    logger.info(`Got status ${response.status} fetching ${what} `);
+    logger.info(`Got status ${response.status} fetching ${what}`);
   }
 
   private getKeyForSource(source: TransactionSource): string {
