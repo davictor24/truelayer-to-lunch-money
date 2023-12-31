@@ -6,6 +6,8 @@ services:
       - lunch-money-service
     build:
       context: ../../frontend
+      args:
+        REACT_APP_TRUELAYER_SERVICE_ORIGIN: http://localhost:8080
     image: lunchmoneysync/frontend
     ports:
       - 8000:80

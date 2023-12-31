@@ -11,14 +11,14 @@ export interface Connection {
 }
 
 export class TruelayerService {
-  private apiOrigin: string;
+  private apiURL: string;
 
-  constructor(apiOrigin: string) {
-    this.apiOrigin = apiOrigin;
+  constructor(apiURL: string) {
+    this.apiURL = apiURL;
   }
 
   async getConnections(): Promise<Connection[]> {
-    const response = await fetch(`${this.apiOrigin}/connections`);
+    const response = await fetch(`${this.apiURL}/connections`);
     if (response.status !== 200) {
       throw new Error('Failed to get connections');
     }
@@ -32,7 +32,7 @@ export class TruelayerService {
       name,
       url: `${origin}${pathname}`,
     });
-    const response = await fetch(`${this.apiOrigin}/auth?${query.toString()}`);
+    const response = await fetch(`${this.apiURL}/auth?${query.toString()}`);
     if (response.status !== 200) {
       throw new Error('Failed to get authentication URL');
     }
@@ -47,7 +47,7 @@ export class TruelayerService {
 
   async disconnect(name: string): Promise<void> {
     const response = await fetch(
-      `${this.apiOrigin}/connections/${this.encodeRFC3986URIComponent(name)}`,
+      `${this.apiURL}/connections/${this.encodeRFC3986URIComponent(name)}`,
       { method: 'DELETE' },
     );
     if (response.status !== 204) {
@@ -57,7 +57,7 @@ export class TruelayerService {
 
   async sync(name: string): Promise<void> {
     const response = await fetch(
-      `${this.apiOrigin}/connections/sync/${this.encodeRFC3986URIComponent(name)}`,
+      `${this.apiURL}/connections/sync/${this.encodeRFC3986URIComponent(name)}`,
       { method: 'POST' },
     );
     if (response.status !== 204) {
@@ -67,7 +67,7 @@ export class TruelayerService {
 
   async syncAll(): Promise<void> {
     const response = await fetch(
-      `${this.apiOrigin}/connections/sync`,
+      `${this.apiURL}/connections/sync`,
       { method: 'POST' },
     );
     if (response.status !== 204) {
@@ -83,5 +83,5 @@ export class TruelayerService {
   }
 }
 
-const truelayerService = new TruelayerService(config.apiOrigin);
+const truelayerService = new TruelayerService(config.truelayerService.apiURL);
 export default truelayerService;
