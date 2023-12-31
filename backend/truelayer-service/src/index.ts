@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import cron from 'node-cron';
@@ -32,7 +32,10 @@ app.delete('/truelayer/connections/:name', deleteConnection);
 app.post('/truelayer/connections/sync/:name', queueTransactionsForConnectionNameWayBack);
 app.post('/truelayer/connections/sync', queueTransactionsWayBack);
 
-app.use((err: Error, _: Request, res: Response) => {
+// Express requires all four parameters in the function signature, otherwise it won't
+// get called when there is an error and the default error handler will be called instead.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   logger.error(err.stack);
   res.status(500).send('An error occurred');
 });
