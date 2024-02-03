@@ -185,6 +185,12 @@ export class TruelayerService {
   }
 
   async queueTransactionsWayBack(): Promise<void> {
+    const connections = await this.getConnections();
+    await Promise.all(
+      connections.map((connection) => this.updateTransactionSources(
+        connection,
+      )),
+    );
     await this.queueTransactions(
       dateDaysAgo(new Date(), TruelayerService.WAY_BACK_DAYS),
       true,
@@ -222,11 +228,7 @@ export class TruelayerService {
     const logSuffix = `transactions for ${connection.connection_name} since ${since}`;
     logger.info(`Queueing ${logSuffix}`);
     try {
-      const accessToken = await this.getAccessToken(
-        connection.connection_name,
-        connection.access_token,
-        connection.refresh_token,
-      );
+      const accessToken = await this.getAccessTokenForConnection(connection);
       const sources = this.mergeTransactionSources(
         connection.connection_name,
         connection.metadata.provider,
@@ -472,6 +474,33 @@ export class TruelayerService {
     await ConnectionModel.findOneAndUpdate(filter, connection, { upsert: true }).exec();
     logger.info(`Saved connection ${connectionName} to DB`);
     return { ...filter, ...connection };
+  }
+
+  private async updateTransactionSources(
+    connection: Connection,
+  ): Promise<void> {
+    const accessToken = await this.getAccessTokenForConnection(connection);
+    const accounts = await this.getTransactionSources(
+      'account',
+      accessToken.token,
+    ) as Account[];
+    const cards = await this.getTransactionSources(
+      'card',
+      accessToken.token,
+    ) as Card[];
+    const filter = { connection_name: connection.connection_name };
+    await ConnectionModel.findOneAndUpdate(filter, { accounts, cards }).exec();
+    logger.info(`Updated transaction sources for connection ${connection.connection_name}`);
+  }
+
+  private async getAccessTokenForConnection(
+    connection: Connection,
+  ): Promise<Token> {
+    return this.getAccessToken(
+      connection.connection_name,
+      connection.access_token,
+      connection.refresh_token,
+    );
   }
 
   private async getAccessToken(
