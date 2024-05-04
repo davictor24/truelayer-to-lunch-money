@@ -19,10 +19,24 @@ This project has a frontend and two backend services -
 
 (TODO: Architecture diagram)
 
+### Things to note about TrueLayer setup
+##### Environments
+TrueLayer's live environment should be used if you want to link real bank accounts. However, they also offer a sandbox environment for testing purposes.
+- Steps starting with **(sandbox)** should only be done if you intend to use the sandbox environment.
+- Steps starting with **(live)** should only be done if you intend to use the live environment.
+- Every other step should be done irrespective of using the sandbox or live environment.
+
+##### Testing mode
+TrueLayer offers unlimited free trial for its Data API in the live environment. However, when linking your bank account, you will see a "Testing mode active" banner at the top of the page (you will also see this banner in the sandbox environment).
+
+If you want to deploy an an application that uses the TrueLayer API to other users, TrueLayer requires that you contact their sales team. However this is not required for personal use. Feel free to ignore the banner if running this project for personal use.
+
+More information can be found [here](https://support.truelayer.com/hc/en-us/articles/360002087954-Does-TrueLayer-offer-a-trial-period-and-a-Sandbox-environment).
+
 ### Setting up a TrueLayer application
 1. Create an account on https://console.truelayer.com.
 2. A pop-up will appear asking you to create your first application. Enter an application name and a client ID. Don't download your client secret for now.
-3. Turn on the "LIVE" switch to the right of the navbar.
+3. **(live)** Turn on the "LIVE" switch to the right of the navbar.
 4. Go to the app settings using the left navigation.
 5. Copy the generated client ID for your application.
 6. Reset your client secret (using the red "refresh" button). Save the file containing the secret once it comes up for download.
@@ -39,8 +53,9 @@ This project has a frontend and two backend services -
 2. Rename `env.txt` to `env.sh`.
 3. Set the environment variables `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET` and `LUNCH_MONEY_ACCESS_TOKEN` to their respective values.
 4. Set the environment variables `TRUELAYER_STATE_SECRET`, `TRUELAYER_TOKEN_ENCRYPTION_SECRET` and `TRUELAYER_TOKEN_ENCRYPTION_SALT` to secure values of your choosing.
-5. Run `source ./env.sh` to set the environment variables in the current shell.
-6. Run `docker-compose -f common.yaml up` to start the containers.
+5. **(sandbox)** Set the `TRUELAYER_USE_SANDBOX` environment variable to `true`.
+6. Run `source ./env.sh` to set the environment variables in the current shell.
+7. Run `docker-compose -f common.yaml up --build` to start the containers.
 
 ### Adding bank connections
 Wait for the containers to finish starting up.
